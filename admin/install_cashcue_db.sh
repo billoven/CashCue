@@ -17,7 +17,7 @@ source "$CONF_FILE"
 set +a
 
 # Create database, user, and tables
-mysql -u root -p <<EOF
+mysql -u admin -p <<EOF
 -- Create database
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
