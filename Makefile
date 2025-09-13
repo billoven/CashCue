@@ -96,10 +96,36 @@ cron:
 	@echo "Cron jobs installed in $(CRON_FILE)"
 
 # ------------------------
+# System setup
+# ------------------------
+system-group:
+	@echo "Ensuring 'cashcue' system group exists..."
+	@if ! getent group cashcue > /dev/null; then \
+		sudo groupadd --system cashcue; \
+		echo "Group 'cashcue' created."; \
+	else \
+		echo "Group 'cashcue' already exists."; \
+	fi
+
+secure-config: install-config
+	@echo "Securing configuration file..."
+	sudo chown root:cashcue /etc/cashcue/cashcue.conf
+	sudo chmod 640 /etc/cashcue/cashcue.conf
+	@echo "Configuration secured (root:cashcue, 640)."
+
+secure-logs:
+	@echo "Securing log directory..."
+	sudo mkdir -p /var/log/cashcue
+	sudo chown root:cashcue /var/log/cashcue
+	sudo chmod 750 /var/log/cashcue
+	@echo "Log directory secured (root:cashcue, 750)."
+
+# ------------------------
 # Deployment
 # ------------------------
-deploy: pre-install install install-web install-config init-db write-version cron
+deploy: pre-install system-group install install-web init-db write-version cron secure-config secure-logs
 	@echo "Deployment completed successfully."
+
 
 # Upgrade: update sources, reinstall, update version
 upgrade: pre-install
