@@ -1,0 +1,48 @@
+# ===============================
+# CashCue Global Configuration
+# Location: /etc/cashcue/cashcue.conf
+# Permissions: chmod 640
+# Owner: root:cashcue
+# ===============================
+
+# ---- Database Configuration ----
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=cashcue
+DB_USER=cashcue_user
+DB_PASS=ChangeMe123!   # ⚠️ Replace with a strong password
+
+# ---- Application Environment ----
+APP_ENV=production        # development | staging | production
+APP_LOG_LEVEL=INFO        # DEBUG | INFO | WARNING | ERROR
+
+# ---- Scheduler (Cron) ----
+CRON_INTERVAL_MINUTES=15  # default interval for fetching stock prices
+
+# ---- Web Application ----
+WEB_HOST=0.0.0.0
+WEB_PORT=8080
+
+# ---- External Data Sources ----
+BOURSORAMA_URL_PATTERN=https://www.boursorama.com/cours/1r{symbol}/
+YAHOO_URL_PATTERN=https://finance.yahoo.com/quote/{symbol}
+
+# ---- Realtime Price Fetcher ----
+HTTP_TIMEOUT=10           # Timeout in seconds for HTTP requests
+HTTP_RETRIES=3            # Number of retries in case of network failure
+DEFAULT_CURRENCY=EUR      # Default currency for instruments
+
+# ---- Logging ----
+LOG_FILE=/var/log/cashcue/realtime_price.log
+
+# ---- Daily Price Update ----
+UPDATE_DAILY_PRICE=true   # true|false: whether to update daily_price table automatically
+MARKET_TIMEZONE=Europe/Paris  # Timezone for Paris stock exchange
+
+# ---- Debug / Dry-run ----
+DRY_RUN=false             # true|false: simulate inserts without touching DB
+
+# ---- Security ----
+# ⚠️ Must be a strong, random, 32+ character string.
+# Generate with:  openssl rand -base64 32 | tr -d '\n' | cut -c1-32
+SECRET_KEY=ReplaceThisWithA32CharRandomString
