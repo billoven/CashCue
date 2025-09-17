@@ -96,6 +96,25 @@ cron:
 	@echo "Cron jobs installed in $(CRON_FILE)"
 
 # ------------------------
+# Logrotate
+# ------------------------
+install-logrotate:
+	@echo "Installing logrotate config for CashCue..."
+	@sudo tee /etc/logrotate.d/cashcue > /dev/null <<'EOF'
+/var/log/cashcue/*.* {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+	@echo "Logrotate config installed at /etc/logrotate.d/cashcue"
+
+
+# ------------------------
 # System setup
 # ------------------------
 system-group:
@@ -123,11 +142,9 @@ secure-logs:
 # ------------------------
 # Deployment
 # ------------------------
-deploy: pre-install system-group install install-web init-db write-version cron secure-config secure-logs
+deploy: pre-install system-group install install-web init-db write-version cron secure-config secure-logs install-logrotate
 	@echo "Deployment completed successfully."
 
-
-# Upgrade: update sources, reinstall, update version
 upgrade: pre-install
 	@git pull --rebase
 	$(MAKE) install
@@ -135,6 +152,7 @@ upgrade: pre-install
 	$(MAKE) install-config
 	$(MAKE) write-version
 	$(MAKE) cron
+	$(MAKE) install-logrotate
 	@echo "Upgrade completed."
 
 # ------------------------
