@@ -175,6 +175,9 @@ uninstall:
 # ------------------------
 # Help
 # ------------------------
+# ------------------------
+# Help
+# ------------------------
 help:
 	@echo "CashCue Makefile — available targets:"
 	@echo "  make all             -> Deploy everything (default target)"
@@ -186,8 +189,9 @@ help:
 	@echo "  make pre-install     -> Show currently installed version"
 	@echo "  make write-version   -> Write current Git version to VERSION file"
 	@echo "  make cron            -> Install cron jobs"
-	@echo "  make deploy          -> Full deployment (backend + frontend + config + DB + cron)"
+	@echo "  make deploy          -> Full deployment (backend + frontend + config + DB + cron + logrotate)"
 	@echo "  make upgrade         -> Pull latest code and redeploy"
+	@echo "  make install-logrotate -> Install logrotate rules for /var/log/cashcue/*.*"
 	@echo "  make clean           -> Clean Python caches and temp files"
 	@echo "  make uninstall       -> Remove all installed files"
 	@echo "  make help            -> Show this help message"
