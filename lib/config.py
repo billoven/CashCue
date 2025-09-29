@@ -7,14 +7,18 @@ class ConfigManager:
     Supports typed getters and default values.
     """
 
-    def __init__(self, filepath="/etc/cashcue/cashcue.conf"):
+    def __init__(self):
+        config_file = os.environ.get("CASHCUE_CONFIG_FILE")
+        if not config_file:
+            print("[ERROR] Environment variable CASHCUE_CONFIG_FILE is not set.")
+            sys.exit(1)
+        if not os.path.exists(config_file):
+            print(f"[ERROR] Config file not found: {config_file}")
+            sys.exit(1)
         self.config = {}
-        self.load(filepath)
+        self.load(config_file)
 
     def load(self, filepath):
-        if not os.path.exists(filepath):
-            print(f"[ERROR] Config file not found: {filepath}")
-            sys.exit(1)
         with open(filepath, "r") as f:
             for line in f:
                 line = line.strip()
@@ -22,7 +26,6 @@ class ConfigManager:
                     continue
                 if "=" in line:
                     key, value = line.split("=", 1)
-                    # Remove inline comment
                     value = value.split("#", 1)[0].strip()
                     self.config[key.strip()] = value
 
