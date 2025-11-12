@@ -18,7 +18,7 @@ function loadHoldings() {
       const tbody = document.getElementById('holdingsTableBody');
       if (!tbody) return;
       tbody.innerHTML = '';
-
+console.log('Holding data:', json.data);
       json.data.forEach(row => {
         const tr = document.createElement('tr');
         const plClass = row.unrealized_pl >= 0 ? 'text-success' : 'text-danger';

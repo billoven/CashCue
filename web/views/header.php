@@ -45,6 +45,9 @@
         <a href="/cashcue/views/admin/manage_brokers.php" class="list-group-item list-group-item-action bg-dark text-white">
           <i class="bi bi-bank me-2"></i> Brokers
         </a>
+        <a href="/cashcue/views/manage_dividends.php" class="list-group-item list-group-item-action bg-dark text-white">          
+          <i class="bi bi-cash-coin"></i> Dividends
+      </a>
       </div>
     </div>
     <!-- /#sidebar-wrapper -->
