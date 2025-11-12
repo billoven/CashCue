@@ -16,8 +16,9 @@ try {
             -- Realized profit/loss (sum of SELL proceeds)
             ROUND(SUM(CASE WHEN o.order_type = 'SELL' THEN o.quantity * o.price ELSE 0 END), 2) AS realized_pl,
 
-            -- Total dividends received
-            (SELECT COALESCE(SUM(d.amount), 0) FROM dividend d) AS dividends,
+            -- Total dividends received (net and gross)
+            (SELECT COALESCE(SUM(d.amount), 0) FROM dividend d) AS dividends_net,
+            (SELECT COALESCE(SUM(d.gross_amount), 0) FROM dividend d) AS dividends_gross,
 
             -- Latest portfolio snapshot totals
             (SELECT COALESCE(SUM(p.total_value), 0)
@@ -29,6 +30,7 @@ try {
             WHERE p.date = (SELECT MAX(date) FROM portfolio_snapshot)) AS cash_balance
         FROM order_transaction o
     ";
+
 
 
     $stmt = $pdo->query($sql);

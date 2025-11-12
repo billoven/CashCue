@@ -1,4 +1,34 @@
 /* --- Cashcue Layout (consistent) --- */
+/* Custom 7-column layout for medium+ screens */
+@media (min-width: 768px) {
+  .col-md-1-7 {
+    flex: 0 0 14.2857%;
+    max-width: 14.2857%;
+  }
+}
+
+/* Compact summary cards */
+.summary-card {
+  min-height: 85px;
+  border-width: 1.5px;
+  border-radius: 0.5rem;
+}
+
+.summary-card .card-body {
+  padding: 0.5rem !important;
+}
+
+.summary-title {
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.summary-value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+
 body {
   overflow-x: hidden;
   margin: 0;

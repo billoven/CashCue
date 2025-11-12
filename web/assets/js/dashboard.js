@@ -156,7 +156,7 @@ function loadInstrumentChart(instrument_id, label) {
 }
 
 // ---- Portfolio Summary ----
-function loadPortfolioSummary() {
+async function loadPortfolioSummary() {
   fetch('/cashcue/api/getPortfolioSummary.php')
     .then(res => res.json())
     .then(json => {
@@ -169,11 +169,13 @@ function loadPortfolioSummary() {
       document.getElementById('investedAmount').innerText = `€${Number(d.invested_amount).toFixed(2)}`;
       document.getElementById('unrealizedPL').innerText = `€${Number(d.unrealized_pl).toFixed(2)}`;
       document.getElementById('realizedPL').innerText = `€${Number(d.realized_pl).toFixed(2)}`;
-      document.getElementById('dividends').innerText = `€${Number(d.dividends).toFixed(2)}`;
+      document.getElementById('dividendsGross').textContent = `€${Number(d.dividends_gross).toFixed(2)}`;
+      document.getElementById('dividendsNet').textContent = `€${number(d.dividends_net).toFixed(2)}`;
       document.getElementById('cashBalance').innerText = `€${Number(d.cash_balance).toFixed(2)}`;
     })
     .catch(err => console.error('Summary fetch error:', err));
 }
+
 
 // ---- Portfolio Value Over Time ----
 async function loadPortfolioHistory() {
