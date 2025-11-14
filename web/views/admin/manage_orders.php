@@ -1,13 +1,19 @@
 <?php include __DIR__ . '/../header.php'; ?>
 
 <div class="main-content">
-  <div class="container py-4">
-    <h2 class="mb-4">💼 Manage Orders</h2>
+  <div class="container-fluid px-4">
+    <h1 class="mt-4">Orders Management</h1>
+    <ol class="breadcrumb mb-4">
+      <li class="breadcrumb-item"><a href="index.php">Dashboard</a></li>
+      <li class="breadcrumb-item active">Manage Orders</li>
+    </ol>
 
     <!-- 🔍 Search + Add -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <input type="text" id="searchOrder" class="form-control w-50" placeholder="Search by symbol or label...">
-      <button class="btn btn-success" id="btnAddOrder">➕ Add Order</button>
+      <button id="btnAddOrder" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle"></i> Add Order
+      </button>
     </div>
 
     <!-- 🧾 Orders Table -->

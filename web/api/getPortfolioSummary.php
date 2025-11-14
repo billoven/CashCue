@@ -3,59 +3,60 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    // ✅ Use your Database class
-   $db = new Database('development');
+    $db = new Database('development');
     $pdo = $db->getConnection();
 
-    // ---- Compute portfolio totals ----
+    // Optional range filtering
+    $days = isset($_GET['range']) ? (int)$_GET['range'] : 30;
+    $whereClause = "WHERE ps.date >= CURDATE() - INTERVAL $days DAY";
+
+    // ---- SQL for daily investments + cumulative ----
     $sql = "
-        SELECT
-            -- Total invested amount (sum of all BUY orders)
-            ROUND(SUM(CASE WHEN o.order_type = 'BUY' THEN o.quantity * o.price ELSE 0 END), 2) AS invested_amount,
+        WITH daily_investments AS (
+            SELECT 
+                DATE(trade_date) AS date,
+                SUM(CASE 
+                        WHEN order_type = 'BUY' THEN quantity * price
+                        WHEN order_type = 'SELL' THEN -quantity * price
+                        ELSE 0 
+                    END) AS daily_invested
+            FROM order_transaction
+            GROUP BY DATE(trade_date)
+        ),
+        joined_data AS (
+            SELECT 
+                ps.date AS date,
+                COALESCE(di.daily_invested, 0) AS daily_invested,
+                ps.total_value AS portfolio
+            FROM portfolio_snapshot ps
+            LEFT JOIN daily_investments di ON ps.date = di.date
 
-            -- Realized profit/loss (sum of SELL proceeds)
-            ROUND(SUM(CASE WHEN o.order_type = 'SELL' THEN o.quantity * o.price ELSE 0 END), 2) AS realized_pl,
+            UNION ALL
 
-            -- Total dividends received (net and gross)
-            (SELECT COALESCE(SUM(d.amount), 0) FROM dividend d) AS dividends_net,
-            (SELECT COALESCE(SUM(d.gross_amount), 0) FROM dividend d) AS dividends_gross,
-
-            -- Latest portfolio snapshot totals
-            (SELECT COALESCE(SUM(p.total_value), 0)
-            FROM portfolio_snapshot p
-            WHERE p.date = (SELECT MAX(date) FROM portfolio_snapshot)) AS total_value,
-
-            (SELECT COALESCE(SUM(p.cash_balance), 0)
-            FROM portfolio_snapshot p
-            WHERE p.date = (SELECT MAX(date) FROM portfolio_snapshot)) AS cash_balance
-        FROM order_transaction o
+            SELECT 
+                di.date,
+                di.daily_invested,
+                COALESCE(ps.total_value, 0)
+            FROM daily_investments di
+            LEFT JOIN portfolio_snapshot ps ON ps.date = di.date
+        )
+        SELECT 
+            date,
+            ROUND(SUM(daily_invested), 2) AS daily_invested,
+            ROUND(SUM(SUM(daily_invested)) OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2) AS cum_invested,
+            ROUND(MAX(portfolio), 2) AS portfolio
+        FROM joined_data
+        $whereClause
+        GROUP BY date
+        ORDER BY date ASC;
     ";
 
-
-
     $stmt = $pdo->query($sql);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // Fallbacks
-    if (!$row) {
-        $row = [
-            'invested_amount' => 0,
-            'realized_pl' => 0,
-            'dividends' => 0,
-            'total_value' => 0,
-            'cash_balance' => 0
-        ];
-    }
-
-    // Compute Unrealized P/L
-    $row['unrealized_pl'] = round(
-        ($row['total_value'] - $row['invested_amount'] - $row['realized_pl']), 
-        2
-    );
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
         'status' => 'success',
-        'data'   => $row
+        'data' => $rows
     ]);
 } catch (Exception $e) {
     echo json_encode([
@@ -64,3 +65,4 @@ try {
     ]);
     exit;
 }
+?>

@@ -45,8 +45,8 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${i.type}</td>
         <td>${i.currency}</td>
         <td>
-          <button class="btn btn-sm btn-primary edit-btn" data-id="${i.id}">✏️</button>
-          <button class="btn btn-sm btn-danger delete-btn" data-id="${i.id}">🗑️</button>
+          <button class="btn btn-sm btn-outline-primary me-1 edit-btn" data-id="${i.id}"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${i.id}"><i class="bi bi-trash"></i></button>
         </td>
       `;
       tableBody.appendChild(tr);

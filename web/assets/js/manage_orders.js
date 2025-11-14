@@ -78,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tr.innerHTML = `
         <td>${o.symbol}</td>
         <td>${o.label}</td>
-        <td>${o.broker_name || "-"}</td>
+        <td>${o.broker_full_name || "-"}</td>
         <td>${o.order_type}</td>
         <td>${o.quantity}</td>
         <td>${parseFloat(o.price).toFixed(4)}</td>
@@ -86,8 +86,8 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${parseFloat(o.total_value || o.total || 0).toFixed(2)}</td>
         <td>${o.trade_date}</td>
         <td>
-          <button class="btn btn-sm btn-primary edit-btn" data-id="${o.id}">✏️</button>
-          <button class="btn btn-sm btn-danger delete-btn" data-id="${o.id}">🗑️</button>
+          <button class="btn btn-sm btn-outline-primary me-1 edit-btn" data-id="${o.id}"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${o.id}"><i class="bi bi-trash"></i></button>
         </td>
       `;
       tableBody.appendChild(tr);

@@ -1,70 +1,60 @@
 <?php
-header("Content-Type: application/json");
+header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
 
 try {
     $db = new Database('development');
     $pdo = $db->getConnection();
 
-    // Determine range (in days)
-    $range = isset($_GET['range']) && $_GET['range'] !== 'all'
-        ? (int) $_GET['range']
-        : null;
+    // ---- Build dynamic filter (optional range) ----
+    $daysLimit = isset($_GET['range']) ? intval($_GET['range']) : 30;
+    $whereClause = "WHERE ps.date >= DATE_SUB(CURDATE(), INTERVAL $daysLimit DAY)";
 
-    // ✅ Adjust WHERE clause if a range is provided
-    $whereClause = $range ? "WHERE ps.date >= CURDATE() - INTERVAL $range DAY" : "";
-
-    // ✅ Main query: join invested and portfolio data by date
+    // ---- Compute daily & cumulative invested ----
     $sql = "
-        SELECT 
-            COALESCE(ps.date, inv.date) AS date,
-            ROUND(COALESCE(inv.invested, 0), 2) AS invested,
-            ROUND(COALESCE(ps.total_value, 0), 2) AS portfolio
-        FROM (
+        WITH daily_investments AS (
             SELECT 
                 DATE(trade_date) AS date,
-                SUM(CASE WHEN order_type = 'BUY' THEN quantity * price 
-                         WHEN order_type = 'SELL' THEN -quantity * price 
-                         ELSE 0 END) AS invested
+                SUM(
+                    CASE 
+                        WHEN order_type = 'BUY' THEN quantity * price
+                        WHEN order_type = 'SELL' THEN -quantity * price
+                        ELSE 0 
+                    END
+                ) AS daily_invested
             FROM order_transaction
             GROUP BY DATE(trade_date)
-        ) inv
-        LEFT JOIN portfolio_snapshot ps ON ps.date = inv.date
-        $whereClause
-
-        UNION
-
+        ),
+        joined_data AS (
+            SELECT 
+                COALESCE(ps.date, di.date) AS date,
+                ROUND(COALESCE(di.daily_invested, 0), 2) AS daily_invested,
+                ROUND(COALESCE(ps.total_value, 0), 2) AS portfolio
+            FROM portfolio_snapshot ps
+            LEFT JOIN daily_investments di ON di.date = ps.date
+            $whereClause
+        )
         SELECT 
-            ps.date,
-            0 AS invested,
-            ROUND(ps.total_value, 2) AS portfolio
-        FROM portfolio_snapshot ps
-        $whereClause
-        ORDER BY date ASC
+            date,
+            daily_invested,
+            ROUND(SUM(daily_invested) OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2) AS cum_invested,
+            portfolio
+        FROM joined_data
+        ORDER BY date ASC;
     ";
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
+    $stmt = $pdo->query($sql);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (!$rows) {
-        echo json_encode([
-            "status" => "success",
-            "data" => [],
-            "message" => "No portfolio history found"
-        ]);
-        exit;
-    }
-
     echo json_encode([
-        "status" => "success",
-        "count" => count($rows),
-        "data" => $rows
+        'status' => 'success',
+        'data'   => $rows
     ]);
 } catch (Exception $e) {
     echo json_encode([
-        "status" => "error",
-        "message" => $e->getMessage()
+        'status' => 'error',
+        'message' => $e->getMessage()
     ]);
     exit;
 }
+

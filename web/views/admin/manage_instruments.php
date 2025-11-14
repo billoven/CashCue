@@ -1,11 +1,16 @@
 <?php include __DIR__ . '/../header.php'; ?>
 
-<div class="container py-4">
-  <h2 class="mb-4">🎯 Manage Instruments</h2>
-
+<div class="container-fluid px-4">
+  <h1 class="mt-4">Instruments Management</h1>
+  <ol class="breadcrumb mb-4">
+    <li class="breadcrumb-item"><a href="index.php">Dashboard</a></li>
+    <li class="breadcrumb-item active">Manage Instruments</li>
+  </ol>
   <div class="mb-3 d-flex justify-content-between align-items-center">
     <input type="text" id="searchInstrument" class="form-control w-50" placeholder="Search by symbol or label...">
-    <button class="btn btn-success" id="btnAddInstrument">➕ Add Instrument</button>
+    <button id="btnAddInstrument" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-circle"></i> Add Instrument
+    </button>
   </div>
 
   <div class="table-responsive">

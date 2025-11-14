@@ -3,13 +3,21 @@ require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/header.php';
 ?>
 
-<div class="container mt-4">
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Dividends Management</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="index.php">Dashboard</a></li>
+        <li class="breadcrumb-item active">Manage Dividends</li>
+    </ol>
+    
+    <!-- 🔍 Search + Add -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="mb-0">💰 Dividend Management</h4>
-        <button id="addDividendBtn" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-circle"></i> Add Dividend
-        </button>
+      <input type="text" id="searchDividend" class="form-control w-50" placeholder="Search by symbol or label...">
+      <button id="addDividendBtn" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle"></i> Add Dividend
+      </button>
     </div>
+
 
     <div class="table-responsive">
         <table id="dividendsTable" class="table table-striped table-hover align-middle">

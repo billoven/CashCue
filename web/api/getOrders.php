@@ -27,13 +27,15 @@ try {
                     ELSE ot.quantity * ot.price
                 END, 2
             ) AS total,
-            ot.trade_date
+            ot.trade_date,
+            CONCAT(b.name, '_', b.account_type) AS broker_full_name
         FROM order_transaction ot
         JOIN instrument i ON i.id = ot.instrument_id
         JOIN broker_account b ON ot.broker_id = b.id
         ORDER BY ot.trade_date DESC, ot.id DESC
         LIMIT $limit OFFSET $offset
     ";
+    
 
     $stmt = $pdo->query($sql);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

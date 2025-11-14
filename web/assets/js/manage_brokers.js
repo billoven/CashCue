@@ -35,13 +35,13 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${b.created_at}</td>
           <td class="text-center">
             <button class="btn btn-sm btn-outline-primary me-1 editBrokerBtn" data-id="${b.id}">
-              <i class="fas fa-edit"></i>
+              <i class="bi bi-pencil"></i>
             </button>
             <button class="btn btn-sm btn-outline-danger deleteBrokerBtn" data-id="${b.id}">
-              <i class="fas fa-trash-alt"></i>
+              <i class="bi bi-trash"></i>
             </button>
           </td>
-        `;
+          `;
         brokersTableBody.appendChild(row);
       });
     } catch (error) {
