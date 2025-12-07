@@ -9,7 +9,7 @@ if (!$id) {
 }
 
 try {
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
     $stmt = $pdo->prepare("DELETE FROM instrument WHERE id = ?");

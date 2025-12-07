@@ -3,7 +3,7 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
     $id = intval($_POST['id'] ?? 0);

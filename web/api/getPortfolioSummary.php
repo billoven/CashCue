@@ -1,68 +1,55 @@
 <?php
-header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
+header('Content-Type: application/json');
 
 try {
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
-    // Optional range filtering
-    $days = isset($_GET['range']) ? (int)$_GET['range'] : 30;
-    $whereClause = "WHERE ps.date >= CURDATE() - INTERVAL $days DAY";
+    // 1. Total current value of portfolio
+    $sql = "SELECT SUM(total_value) AS total_value 
+            FROM portfolio_snapshot 
+            WHERE date = (SELECT MAX(date) FROM portfolio_snapshot)";
+    $totalValue = floatval($pdo->query($sql)->fetchColumn() ?? 0);
 
-    // ---- SQL for daily investments + cumulative ----
-    $sql = "
-        WITH daily_investments AS (
-            SELECT 
-                DATE(trade_date) AS date,
-                SUM(CASE 
-                        WHEN order_type = 'BUY' THEN quantity * price
-                        WHEN order_type = 'SELL' THEN -quantity * price
-                        ELSE 0 
-                    END) AS daily_invested
-            FROM order_transaction
-            GROUP BY DATE(trade_date)
-        ),
-        joined_data AS (
-            SELECT 
-                ps.date AS date,
-                COALESCE(di.daily_invested, 0) AS daily_invested,
-                ps.total_value AS portfolio
-            FROM portfolio_snapshot ps
-            LEFT JOIN daily_investments di ON ps.date = di.date
+    // 2. Total invested amount
+    $sql = "SELECT SUM(invested_amount) AS invested 
+            FROM portfolio_snapshot 
+            WHERE date = (SELECT MAX(date) FROM portfolio_snapshot)";
+    $invested = floatval($pdo->query($sql)->fetchColumn() ?? 0);
 
-            UNION ALL
+    // 3. Total unrealized P/L
+    $sql = "SELECT SUM(unrealized_pl) AS unrealized 
+            FROM portfolio_snapshot
+            WHERE date = (SELECT MAX(date) FROM portfolio_snapshot)";
+    $unrealized = floatval($pdo->query($sql)->fetchColumn() ?? 0);
 
-            SELECT 
-                di.date,
-                di.daily_invested,
-                COALESCE(ps.total_value, 0)
-            FROM daily_investments di
-            LEFT JOIN portfolio_snapshot ps ON ps.date = di.date
-        )
-        SELECT 
-            date,
-            ROUND(SUM(daily_invested), 2) AS daily_invested,
-            ROUND(SUM(SUM(daily_invested)) OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2) AS cum_invested,
-            ROUND(MAX(portfolio), 2) AS portfolio
-        FROM joined_data
-        $whereClause
-        GROUP BY date
-        ORDER BY date ASC;
-    ";
+    // 4. Realized P/L — source = portfolio_snapshot
+    $sql = "SELECT SUM(realized_pl) AS realized 
+            FROM portfolio_snapshot 
+            WHERE realized_pl IS NOT NULL";
+    $realized = floatval($pdo->query($sql)->fetchColumn() ?? 0);
 
-    $stmt = $pdo->query($sql);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // 5. Total dividends received
+    $sql = "SELECT SUM(dividends_received) 
+            FROM portfolio_snapshot
+            WHERE date = (SELECT MAX(date) FROM portfolio_snapshot)";
+    $dividends = floatval($pdo->query($sql)->fetchColumn() ?? 0);
 
     echo json_encode([
-        'status' => 'success',
-        'data' => $rows
+        "status" => "success",
+        "data" => [
+            "total_value"    => $totalValue,
+            "invested"       => $invested,
+            "unrealized_pl"  => $unrealized,
+            "realized_pl"    => $realized,
+            "dividends"      => $dividends
+        ]
     ]);
+
 } catch (Exception $e) {
     echo json_encode([
-        'status' => 'error',
-        'message' => $e->getMessage()
+        "status" => "error",
+        "message" => $e->getMessage()
     ]);
-    exit;
 }
-?>

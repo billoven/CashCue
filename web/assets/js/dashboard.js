@@ -1,19 +1,38 @@
 // assets/js/dashboard.js
 document.addEventListener("DOMContentLoaded", () => {
-  loadPortfolioSummary();   // 🔹 new
-  loadPortfolioHistory();
-  loadRealtimePrices();
-  loadLastOrders();
+  const accountSelect = document.getElementById("activeAccountSelect");
 
-  // Refresh button
+  function reloadDashboardData() {
+    const accountId = accountSelect ? accountSelect.value : "all";
+
+    loadPortfolioSummary(accountId);
+    loadPortfolioHistory(accountId);
+    loadRealtimePrices(accountId);
+    loadLastOrders(accountId);
+  }
+
+  // Initial load
+  reloadDashboardData();
+
+  // When user changes active account → reload dashboard
+  if (accountSelect) {
+    accountSelect.addEventListener("change", reloadDashboardData);
+  }
+
+  // Refresh real-time prices only
   const refreshBtn = document.getElementById("refreshRealtime");
-  if (refreshBtn) refreshBtn.addEventListener("click", loadRealtimePrices);
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      const accountId = accountSelect ? accountSelect.value : "all";
+      loadRealtimePrices(accountId);
+    });
+  }
 });
 
 /**
  * Load realtime instrument prices
  */
-function loadRealtimePrices() {
+function loadRealtimePrices(accountId) {
   const container = document.getElementById("realtimeTableContainer");
   if (!container) return;
   container.innerHTML = "<p class='text-muted'>Loading realtime prices...</p>";
@@ -72,7 +91,7 @@ function loadRealtimePrices() {
  * Load recent orders
  */
 // ---- Load Last Orders ----
-async function loadLastOrders() {
+async function loadLastOrders(accountId) {
   try {
     const res = await fetch("/cashcue/api/getOrders.php");
     const json = await res.json();
@@ -156,29 +175,56 @@ function loadInstrumentChart(instrument_id, label) {
 }
 
 // ---- Portfolio Summary ----
-async function loadPortfolioSummary() {
-  fetch('/cashcue/api/getPortfolioSummary.php')
-    .then(res => res.json())
-    .then(json => {
-      if (json.status !== 'success') {
-        console.error('Summary API failed:', json.message);
-        return;
-      }
-      const d = json.data;
-      document.getElementById('totalValue').innerText = `€${Number(d.total_value).toFixed(2)}`;
-      document.getElementById('investedAmount').innerText = `€${Number(d.invested_amount).toFixed(2)}`;
-      document.getElementById('unrealizedPL').innerText = `€${Number(d.unrealized_pl).toFixed(2)}`;
-      document.getElementById('realizedPL').innerText = `€${Number(d.realized_pl).toFixed(2)}`;
-      document.getElementById('dividendsGross').textContent = `€${Number(d.dividends_gross).toFixed(2)}`;
-      document.getElementById('dividendsNet').textContent = `€${number(d.dividends_net).toFixed(2)}`;
-      document.getElementById('cashBalance').innerText = `€${Number(d.cash_balance).toFixed(2)}`;
-    })
-    .catch(err => console.error('Summary fetch error:', err));
+async function loadPortfolioSummary(accountId) {
+  try {
+    const res = await fetch('/cashcue/api/getPortfolioSummary.php?range=10');
+    const json = await res.json();
+
+    if (!json || json.status !== 'success') {
+      console.error('Summary API failed:', json && json.message ? json.message : 'no response');
+      return;
+    }
+
+    const d = json.data;
+
+    // Defensive parse helpers
+    const toNum = v => {
+      if (v === null || v === undefined || v === '') return 0;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    // Format as Euro
+    const formatEUR = v => new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(toNum(v));
+
+    // Populate DOM (guarding for missing elements)
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setText('totalValue', formatEUR(d.total_value));
+    setText('investedAmount', formatEUR(d.invested_amount));
+    setText('unrealizedPL', formatEUR(d.unrealized_pl));
+    setText('realizedPL', formatEUR(d.realized_pl));
+    setText('dividendsGross', formatEUR(d.dividends_gross));
+    setText('dividendsNet', formatEUR(d.dividends_net));
+    setText('cashBalance', formatEUR(d.cash_balance));
+
+  } catch (err) {
+    console.error('Summary fetch error:', err);
+  }
 }
 
 
+
 // ---- Portfolio Value Over Time ----
-async function loadPortfolioHistory() {
+async function loadPortfolioHistory(accountId) {
   try {
     const res = await fetch("/cashcue/api/getPortfolioHistory.php");
     const json = await res.json();

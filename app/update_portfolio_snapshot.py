@@ -15,9 +15,11 @@ Features:
 - Object-oriented design
 - Uses centralized ConfigManager, LoggerManager, DatabaseConnection
 - --dry-run support
+- NEW: --with-cash option to run recalc_cash_balances before snapshots
 """
 
 import argparse
+import subprocess
 from datetime import datetime
 from decimal import Decimal
 
@@ -32,7 +34,6 @@ class PortfolioSnapshotUpdater:
         self.logger = LoggerManager().get_logger()
         self.dry_run = dry_run
 
-        # DB connection
         self.db = DatabaseConnection(
             host=config.get("DB_HOST", "localhost"),
             user=config.get("DB_USER"),
@@ -41,6 +42,10 @@ class PortfolioSnapshotUpdater:
             port=int(config.get("DB_PORT", 3306))
         )
         self.db.connect()
+
+    # .............................................................
+    #    Your existing methods remain unchanged
+    # .............................................................
 
     def fetch_brokers(self):
         sql = "SELECT id, name FROM broker_account"
@@ -145,7 +150,9 @@ class PortfolioSnapshotUpdater:
                     self.logger.warning(f"No market price for instrument {instr['symbol']}")
 
             dividends_received = self.fetch_dividends(broker_id, today)
-            cash_balance = Decimal("0.0")  # Future: track cash separately
+
+            # cash_balance will be updated via recalc_cash_balances BEFORE snapshot
+            cash_balance = Decimal("0.0")
 
             snapshot = {
                 "total_value": total_value,
@@ -156,21 +163,50 @@ class PortfolioSnapshotUpdater:
             }
 
             self.upsert_snapshot(broker_id, today, snapshot)
-            self.logger.info(f"Portfolio snapshot updated for broker '{broker_name}' ({broker_id})")
+            self.logger.info(f"Portfolio snapshot updated for '{broker_name}' ({broker_id})")
 
         self.logger.info("=== Portfolio Snapshot Update Completed ===")
 
 
+# ---------------------------------------------------------
+# MAIN
+# ---------------------------------------------------------
+
 def main():
     parser = argparse.ArgumentParser(description="CashCue Portfolio Snapshot Updater (OOD)")
     parser.add_argument("--dry-run", action="store_true", help="Simulate execution without DB writes")
+    parser.add_argument("--with-cash", action="store_true", help="Recalculate cash before snapshots")
     args = parser.parse_args()
 
-    # Load config & logger
     config = ConfigManager("/etc/cashcue/cashcue.conf")
     logger = LoggerManager(config.get("LOG_FILE", "/var/log/cashcue/portfolio_snapshot.log"))
     dry_run = args.dry_run or config.get("DRY_RUN", "false").lower() == "true"
 
+    # ---------------------------------------------------------
+    # NEW: recalc cash BEFORE snapshot
+    # ---------------------------------------------------------
+    if args.with_cash:
+        logger.get_logger().info("=== Running cash balance recalculation before snapshots ===")
+
+        cmd = [
+            "/opt/cashcue/venv/bin/python3",
+            "-m", "app.recalc_cash_balances"
+        ]
+
+        if dry_run:
+            cmd.append("--dry-run")
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            logger.get_logger().info(result.stdout or "")
+            if result.stderr:
+                logger.get_logger().warning(result.stderr)
+        except Exception as e:
+            logger.get_logger().error(f"Failed to run recalc_cash_balances: {e}")
+
+    # ---------------------------------------------------------
+    # Then run snapshot updater
+    # ---------------------------------------------------------
     updater = PortfolioSnapshotUpdater(config, logger, dry_run)
     updater.run()
 

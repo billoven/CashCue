@@ -3,7 +3,7 @@ header('Content-Type: application/json');
 require_once '../config/database.php';
 
 try {
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
     $sql = "SELECT d.id, d.broker_id, b.name AS broker_name,

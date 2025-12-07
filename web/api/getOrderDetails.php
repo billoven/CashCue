@@ -9,7 +9,7 @@ try {
 
     $id = (int) $_GET['id'];
 
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
     $sql = "

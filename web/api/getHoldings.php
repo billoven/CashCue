@@ -3,7 +3,7 @@ header("Content-Type: application/json");
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $db = new Database('development');           // ← créer une instance
+    $db = new Database('production');           // ← créer une instance
     $pdo = $db->getConnection();    // ← appeler la méthode
 
     // Aggregate all buy/sell orders per instrument

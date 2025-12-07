@@ -8,7 +8,7 @@ if (!isset($_GET['instrument_id'])) {
 }
 
 try {
-    $db = new Database('development');           // ← créer une instance
+    $db = new Database('production');           // ← créer une instance
     $pdo = $db->getConnection();    // ← appeler la méthode
     $instrument_id = (int) $_GET['instrument_id'];
 

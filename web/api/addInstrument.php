@@ -8,7 +8,7 @@ try {
         throw new Exception("Missing required fields");
     }
 
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
     $sql = "INSERT INTO instrument (symbol, label, isin, type, currency)

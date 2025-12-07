@@ -10,7 +10,7 @@ if (!$id) {
 }
 
 try {
-    $db = new Database('development');
+    $db = new Database('production');
     $pdo = $db->getConnection();
 
     $stmt = $pdo->prepare("SELECT id, symbol, label, isin, type, currency FROM instrument WHERE id = ?");

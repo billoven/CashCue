@@ -3,7 +3,7 @@ require_once '../config/database.php';
 
 header('Content-Type: application/json');
 
-$db = new Database('development');
+$db = new Database('production');
 $pdo = $db->getConnection();
 
 $sql = "

@@ -4,7 +4,7 @@ require_once __DIR__ . '/../classes/Instrument.php';
 require_once __DIR__ . '/../classes/PortfolioSnapshot.php';
 require_once __DIR__ . '/../config/database.php';
 
-$db = (new Database('development'))->getConnection();
+$db = (new Database('production'))->getConnection();
 
 // 1️⃣ Latest realtime prices
 $prices = $db->query("

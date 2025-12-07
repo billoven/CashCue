@@ -19,6 +19,18 @@
 
   <!-- ECharts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+
+  <!-- Flatpickr CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+  <!-- Flatpickr JS -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+  <!-- Optionnel : Thème Bootstrap -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
+
+  <script src="/cashcue/assets/js/header.js"></script>
+
 </head>
 
 <body>
@@ -69,13 +81,14 @@
             </span>
           </div>
 
-          <!-- Right section: Broker selector -->
+          <!-- Right section: Account selector among Brokers -->
           <div class="d-flex align-items-center">
-            <label for="brokerSelect" class="me-2 fw-semibold text-dark">Active Account:</label>
-            <select id="brokerSelect"
+            <label for="activeAccountSelect" class="me-2 fw-semibold text-dark">Active Account:</label>
+            <select id="activeAccountSelect"
                     class="form-select form-select-sm border-primary fw-semibold text-primary"
                     style="min-width:220px; font-size:0.95rem;">
               <option value="all" selected>All Accounts</option>
+              <!-- JS will populate accounts here as: <option value="123">BoursoBank - PEA</option> -->
             </select>
           </div>
         </div>

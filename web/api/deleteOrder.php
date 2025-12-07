@@ -1,19 +1,48 @@
 <?php
-header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
+header('Content-Type: application/json; charset=utf-8');
 
 try {
-    if (!isset($_GET["id"])) throw new Exception("Missing order ID");
+    if (!isset($_GET['id'])) throw new Exception('Missing id');
 
-    $id = (int) $_GET["id"];
-
-    $db = new Database('development');
+    $order_id = (int)$_GET['id'];
+    $db = new Database();
     $pdo = $db->getConnection();
 
-    $stmt = $pdo->prepare("DELETE FROM order_transaction WHERE id = :id");
-    $stmt->execute([":id" => $id]);
+    $pdo->beginTransaction();
 
-    echo json_encode(["status" => "success", "message" => "Order deleted successfully"]);
+    // find order to get broker
+    $sel = $pdo->prepare("SELECT broker_id FROM order_transaction WHERE id = :id LIMIT 1");
+    $sel->execute([':id' => $order_id]);
+    $row = $sel->fetch(PDO::FETCH_ASSOC);
+    if (!$row) throw new Exception('Order not found');
+
+    $broker_id = (int)$row['broker_id'];
+
+    // delete order
+    $stmt = $pdo->prepare("DELETE FROM order_transaction WHERE id = :id");
+    $stmt->execute([':id' => $order_id]);
+
+    // delete related cash_transaction(s)
+    $del = $pdo->prepare("DELETE FROM cash_transaction WHERE reference_id = :ref AND type IN ('BUY','SELL')");
+    $del->execute([':ref' => $order_id]);
+
+    // update cash_account.current_balance if exists
+    $sumStmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) AS sum_amount FROM cash_transaction WHERE broker_account_id = :broker_id");
+    $sumStmt->execute([':broker_id' => $broker_id]);
+    $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
+    if ($sumRow) {
+        $upd = $pdo->prepare("UPDATE cash_account SET current_balance = :bal, updated_at = NOW() WHERE broker_id = :broker_id");
+        $upd->execute([':bal' => $sumRow['sum_amount'], ':broker_id' => $broker_id]);
+    }
+
+    $pdo->commit();
+
+    // ✅ Retour JSON complet
+    echo json_encode(['success' => true, 'order_id' => $order_id]);
+
 } catch (Exception $e) {
-    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(400);
+    echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
 }

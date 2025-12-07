@@ -89,10 +89,11 @@
               <input type="number" id="fees" class="form-control" step="0.01" min="0" value="0.00">
             </div>
           </div>
-
-          <div class="mb-3">
+          <div class="mb-3 flatpickr-wrapper position-relative">
             <label for="trade_date" class="form-label">Trade Date</label>
-            <input type="date" id="trade_date" class="form-control" required>
+            <input id="trade_date" class="form-control" placeholder="Select date & time..." required>
+            <button type="button" id="closeCalendar" class="btn btn-sm btn-outline-secondary position-absolute" 
+                    style="top: 30px; right: 5px; z-index: 1050;">X</button>
           </div>
         </form>
       </div>
