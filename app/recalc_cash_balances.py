@@ -94,8 +94,8 @@ class CashBalanceRecalculator:
     def update_cash_account(self, broker_id, cash_balance):
         sql = """
             UPDATE cash_account
-            SET cash_balance = %s
-            WHERE broker_account_id = %s
+            SET current_balance = %s
+            WHERE broker_id = %s
         """
         params = (cash_balance, broker_id)
 
