@@ -1,9 +1,13 @@
-<?php include __DIR__ . '/../header.php'; ?>
+<?php
+  $BROKER_SCOPE = "disabled";
+  require_once __DIR__ . '/../../includes/helpers.php';
+  require_once __DIR__ . '/../header.php';
+?>
 
 <div class="container-fluid px-4">
   <h1 class="mt-4">Instruments Management</h1>
   <ol class="breadcrumb mb-4">
-    <li class="breadcrumb-item"><a href="index.php">Dashboard</a></li>
+    <li class="breadcrumb-item"><a href="../../index.php">Dashboard</a></li>
     <li class="breadcrumb-item active">Manage Instruments</li>
   </ol>
   <div class="mb-3 d-flex justify-content-between align-items-center">

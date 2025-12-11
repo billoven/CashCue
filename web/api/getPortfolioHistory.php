@@ -6,11 +6,34 @@ try {
     $db = new Database('production');
     $pdo = $db->getConnection();
 
-    // ---- Build dynamic filter (optional range) ----
-    $daysLimit = isset($_GET['range']) ? intval($_GET['range']) : 30;
-    $whereClause = "WHERE ps.date >= DATE_SUB(CURDATE(), INTERVAL $daysLimit DAY)";
+    // -----------------------------
+    // 1) Get and sanitize parameters
+    // -----------------------------
+    $daysLimit = isset($_GET['range']) ? max(1, intval($_GET['range'])) : 30;
 
-    // ---- Compute daily & cumulative invested ----
+    $brokerId = $_GET['broker_account_id'] ?? 'all';
+    $isAll = ($brokerId === 'all' || $brokerId === '' || $brokerId === null);
+
+    // -----------------------------
+    // 2) Build WHERE filters
+    // -----------------------------
+    // $dateFilter = "date >= DATE_SUB(CURDATE(), INTERVAL :daysLimit DAY)";
+    $dateFilter = "COALESCE(ps.date, di.date) >= DATE_SUB(CURDATE(), INTERVAL :daysLimit DAY)";
+
+
+    // Filter for portfolio_snapshot
+    $psFilter = $isAll 
+        ? ""
+        : "AND broker_id = :brokerId";
+
+    // Filter for order_transaction
+    $otFilter = $isAll
+        ? ""
+        : "WHERE broker_id = :brokerId";
+
+    // -----------------------------
+    // 3) SQL query with account filter
+    // -----------------------------
     $sql = "
         WITH daily_investments AS (
             SELECT 
@@ -23,8 +46,10 @@ try {
                     END
                 ) AS daily_invested
             FROM order_transaction
+            $otFilter
             GROUP BY DATE(trade_date)
         ),
+
         joined_data AS (
             SELECT 
                 COALESCE(ps.date, di.date) AS date,
@@ -32,24 +57,45 @@ try {
                 ROUND(COALESCE(ps.total_value, 0), 2) AS portfolio
             FROM portfolio_snapshot ps
             LEFT JOIN daily_investments di ON di.date = ps.date
-            $whereClause
+            WHERE $dateFilter
+            $psFilter
         )
+
         SELECT 
             date,
             daily_invested,
-            ROUND(SUM(daily_invested) OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2) AS cum_invested,
+            ROUND(
+                SUM(daily_invested) OVER (
+                    ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ), 2
+            ) AS cum_invested,
             portfolio
         FROM joined_data
         ORDER BY date ASC;
     ";
 
-    $stmt = $pdo->query($sql);
+    $stmt = $pdo->prepare($sql);
+
+    // -----------------------------
+    // 4) Bind parameters
+    // -----------------------------
+    $stmt->bindValue(':daysLimit', $daysLimit, PDO::PARAM_INT);
+
+    if (!$isAll) {
+        $stmt->bindValue(':brokerId', intval($brokerId), PDO::PARAM_INT);
+    }
+
+    $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // -----------------------------
+    // 5) Output JSON
+    // -----------------------------
     echo json_encode([
         'status' => 'success',
         'data'   => $rows
     ]);
+
 } catch (Exception $e) {
     echo json_encode([
         'status' => 'error',
@@ -57,4 +103,5 @@ try {
     ]);
     exit;
 }
+
 

@@ -1,8 +1,8 @@
 <?php
-require_once __DIR__ . '/../includes/helpers.php';
-require_once __DIR__ . '/header.php';
+  $BROKER_SCOPE = "single-or-all";
+  require_once __DIR__ . '/../includes/helpers.php';
+  require_once __DIR__ . '/header.php';
 ?>
-
 <div class="container-fluid py-4">
   <h2 class="mb-4">💹 Cashcue Dashboard</h2>
 
@@ -71,7 +71,7 @@ require_once __DIR__ . '/header.php';
     <div class="col-md-8">
       <div class="card shadow-sm mb-4">
         <div class="card-header bg-primary text-white fw-bold">Realtime Prices</div>
-        <div class="card-body table-responsive">
+        <div class="card-body table-responsive" id="realtimeTableContainer">
           <table class="table table-striped table-hover align-middle">
             <thead class="table-dark">
               <tr>

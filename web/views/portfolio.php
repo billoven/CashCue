@@ -1,6 +1,7 @@
 <?php
-require_once __DIR__ . '/../includes/helpers.php';
-require_once __DIR__ . '/header.php';
+  $BROKER_SCOPE = "portfolio";
+  require_once __DIR__ . '/../includes/helpers.php';
+  require_once __DIR__ . '/header.php';
 ?>
 
 <div class="container-fluid py-4">

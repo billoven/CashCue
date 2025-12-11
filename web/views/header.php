@@ -29,7 +29,19 @@
   <!-- Optionnel : Thème Bootstrap -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
 
-  <script src="/cashcue/assets/js/header.js"></script>
+  <?php
+    if (!isset($BROKER_SCOPE)) {
+        $BROKER_SCOPE = "single-or-all"; // valeur par défaut
+    }
+  ?>
+
+  <!-- Configuration exposée au JavaScript -->
+  <script>
+    window.__BROKER_SCOPE__ = "<?php echo $BROKER_SCOPE; ?>";
+  </script>
+
+  <!-- Charger header.js APRES la configuration -->
+  <script src="/cashcue/assets/js/header.js" defer></script>
 
 </head>
 
@@ -39,7 +51,7 @@
     <!-- Sidebar -->
     <div class="bg-dark border-end" id="sidebar-wrapper">
       <div class="sidebar-heading text-white p-3 fs-4 text-center">
-        💹 <strong>Cashcue</strong>
+        💹 <strong>CashCue</strong>
       </div>
       <div class="list-group list-group-flush">
         <a href="/cashcue/index.php" class="list-group-item list-group-item-action bg-dark text-white">
@@ -59,7 +71,7 @@
         </a>
         <a href="/cashcue/views/manage_dividends.php" class="list-group-item list-group-item-action bg-dark text-white">          
           <i class="bi bi-cash-coin"></i> Dividends
-      </a>
+        </a>
       </div>
     </div>
     <!-- /#sidebar-wrapper -->
@@ -80,19 +92,18 @@
               CashCue Portfolio Manager
             </span>
           </div>
-
           <!-- Right section: Account selector among Brokers -->
-          <div class="d-flex align-items-center">
-            <label for="activeAccountSelect" class="me-2 fw-semibold text-dark">Active Account:</label>
-            <select id="activeAccountSelect"
-                    class="form-select form-select-sm border-primary fw-semibold text-primary"
-                    style="min-width:220px; font-size:0.95rem;">
-              <option value="all" selected>All Accounts</option>
-              <!-- JS will populate accounts here as: <option value="123">BoursoBank - PEA</option> -->
-            </select>
+          <div id="brokerAccountArea" class="d-flex align-items-center">
+              <label for="activeAccountSelect" class="me-2 fw-semibold text-dark">Active Account:</label>
+              <select id="activeAccountSelect"
+                      class="form-select form-select-sm border-primary fw-semibold text-primary"
+                      style="min-width:220px; font-size:0.95rem;">
+                <option value="all" selected>All Accounts</option>
+              </select>
           </div>
         </div>
       </nav>
 
     <!-- Main Container -->
     <div class="container-fluid mt-4">
+

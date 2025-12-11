@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 
 <!-- Main app logic -->
-<script src="/cashcue/assets/js/main.js"></script>
+<!-- <script src="/cashcue/assets/js/main.js"></script> -->
 
 <!-- Footer scripts -->
 <script src="/cashcue/assets/js/footer.js"></script>

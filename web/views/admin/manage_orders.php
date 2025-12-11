@@ -1,10 +1,14 @@
-<?php include __DIR__ . '/../header.php'; ?>
+<?php
+  $BROKER_SCOPE = "single";
+  require_once __DIR__ . '/../../includes/helpers.php';
+  require_once __DIR__ . '/../header.php';
+?>
 
 <div class="main-content">
   <div class="container-fluid px-4">
     <h1 class="mt-4">Orders Management</h1>
     <ol class="breadcrumb mb-4">
-      <li class="breadcrumb-item"><a href="index.php">Dashboard</a></li>
+      <li class="breadcrumb-item"><a href="../../index.php">Dashboard</a></li>
       <li class="breadcrumb-item active">Manage Orders</li>
     </ol>
 

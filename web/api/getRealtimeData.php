@@ -3,11 +3,19 @@ header("Content-Type: application/json");
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $db = new Database('production');           // ← créer une instance
-    $pdo = $db->getConnection();    // ← appeler la méthode
-    error_log("Database connection established");
+    $db = new Database('production');
+    $pdo = $db->getConnection();
 
-    // Get latest realtime price for each instrument
+    // Read broker_account_id (default = all)
+    $brokerAccountId = $_GET['broker_account_id'] ?? 'all';
+    $isAll = ($brokerAccountId === 'all');
+
+    /**
+     * Base SQL:
+     * - Select latest realtime price per instrument
+     * - Join daily_price for pct_change of the day
+     * - If broker filter: restrict instruments via order_transaction
+     */
     $sql = "
         SELECT 
             i.id AS instrument_id,
@@ -18,7 +26,7 @@ try {
             rp.captured_at,
             dp.pct_change
         FROM instrument i
-        JOIN realtime_price rp 
+        JOIN realtime_price rp
             ON rp.id = (
                 SELECT rp2.id
                 FROM realtime_price rp2
@@ -27,12 +35,29 @@ try {
                 LIMIT 1
             )
         LEFT JOIN daily_price dp 
-            ON dp.instrument_id = i.id 
+            ON dp.instrument_id = i.id
            AND dp.date = CURDATE()
-        ORDER BY i.label ASC
     ";
 
+    // Apply filter for specific broker account
+    if (!$isAll) {
+        $sql .= "
+            WHERE i.id IN (
+                SELECT DISTINCT instrument_id
+                FROM order_transaction
+                WHERE broker_id = :broker_account_id
+            )
+        ";
+    }
+
+    $sql .= " ORDER BY i.label ASC";
+
     $stmt = $pdo->prepare($sql);
+
+    if (!$isAll) {
+        $stmt->bindValue(':broker_account_id', $brokerAccountId, PDO::PARAM_INT);
+    }
+
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -41,12 +66,14 @@ try {
         "count"  => count($rows),
         "data"   => $rows
     ]);
+
 } catch (Exception $e) {
     echo json_encode([
-        "status" => "error",
+        "status"  => "error",
         "message" => $e->getMessage()
     ]);
     exit;
 }
+
 
 
