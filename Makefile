@@ -1,5 +1,5 @@
 # =========================================================
-# CashCue - Makefile
+# CashCue - Makefile (Enhanced Release Management)
 # =========================================================
 
 # ------------------------
@@ -33,9 +33,12 @@ DB_HOST := $(shell awk -F= '/DB_HOST/ {print $$2}' $(CONFIG_FILE) | tr -d ' ')
 DB_PORT := $(shell awk -F= '/DB_PORT/ {print $$2}' $(CONFIG_FILE) | tr -d ' ')
 DB_NAME := $(shell awk -F= '/DB_NAME/ {print $$2}' $(CONFIG_FILE) | tr -d ' ')
 
-.PHONY: all install venv init-db pre-install write-version deploy upgrade cron clean uninstall help \
-	install-config run-dev run-cron run-cron-realtime run-cron-daily run-cron-snapshot \
-	create-db drop-db db-migrate db-upgrade test lint system-group secure-config secure-logs install-logrotate restart-service
+.PHONY: all install venv init-db pre-install write-version deploy new-release \
+	check-gap install-release install-latest \
+	install-web install-config cron install-logrotate \
+	system-group secure-config secure-logs restart-service \
+	run-dev run-cron run-cron-realtime run-cron-daily run-cron-snapshot \
+	test lint clean uninstall help
 
 # =========================================================
 # Default target
@@ -57,7 +60,7 @@ install: venv
 	cp -r app cashcue_core lib adm requirements.txt $(INSTALL_DIR)
 
 # =========================================================
-# Installation (PHP web app)
+# Web frontend (PHP)
 # =========================================================
 install-web:
 	@echo "Installing CashCue PHP web frontend into $(WEB_DIR)..."
@@ -76,28 +79,15 @@ install-config:
 		echo "[WARNING] Please edit /etc/cashcue/cashcue.conf with correct values!"; \
 	else \
 		echo "[INFO] Config already exists, skipping."; \
+		echo "[INFO] Please edit /etc/cashcue/cashcue.conf with new values if needed!"; \
 	fi
 
 # =========================================================
-# Database
+# Database (not touched by releases)
 # =========================================================
 init-db:
 	@echo "Running database initialization..."
 	@bash adm/install_cashcue_db.sh
-
-create-db:
-	mysql -u$(DB_USER) -p$(DB_PASS) -h$(DB_HOST) -P$(DB_PORT) \
-		-e "CREATE DATABASE IF NOT EXISTS $(DB_NAME) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-drop-db:
-	mysql -u$(DB_USER) -p$(DB_PASS) -h$(DB_HOST) -P$(DB_PORT) \
-		-e "DROP DATABASE IF EXISTS $(DB_NAME);"
-
-db-migrate:
-	alembic revision --autogenerate -m "Auto migration"
-
-db-upgrade:
-	alembic upgrade head
 
 # =========================================================
 # Versioning
@@ -114,6 +104,55 @@ write-version:
 	@echo "Deployed version: $(VERSION)"
 
 # =========================================================
+# Release comparison (gap)
+# =========================================================
+check-gap:
+	@if [ -z "$(RELEASE)" ]; then \
+		echo "Usage: make check-gap RELEASE=vX.Y.Z"; exit 1; \
+	fi
+	@if [ -f $(VERSION_FILE) ]; then \
+		INSTALLED=$$(cat $(VERSION_FILE)); \
+		echo "Installed release: $$INSTALLED"; \
+		echo "Target release:    $(RELEASE)"; \
+		echo ""; \
+		echo "Commit differences:"; \
+		git fetch --all --tags >/dev/null 2>&1; \
+		git log --oneline $$INSTALLED..$(RELEASE); \
+	else \
+		echo "[WARN] No installed version file found."; \
+	fi
+
+# =========================================================
+# Unified release installation pipeline
+# =========================================================
+new-release: system-group install install-web write-version cron secure-config secure-logs install-logrotate
+	@echo "Release installation completed (backend + frontend)."
+
+# =========================================================
+# Install a specific release (tag, branch, commit)
+# =========================================================
+install-release:
+	@if [ -z "$(RELEASE)" ]; then \
+		echo "ERROR: You must specify a release: make install-release RELEASE=v1.0.1"; \
+		exit 1; \
+	fi
+	@echo "Fetching latest tags..."
+	git fetch --all --tags
+	@echo "Checking out release $(RELEASE)..."
+	git checkout $(RELEASE)
+	$(MAKE) new-release
+	@echo "Installed release: $(RELEASE)"
+
+# =========================================================
+# Install latest version (replaces upgrade)
+# =========================================================
+install-latest:
+	@echo "Fetching latest changes..."
+	git pull --rebase
+	$(MAKE) new-release
+	@echo "System upgraded to latest version."
+
+# =========================================================
 # Cron jobs
 # =========================================================
 cron:
@@ -125,34 +164,25 @@ cron:
 	@sudo chmod 644 $(CRON_FILE)
 	@echo "Cron jobs installed in $(CRON_FILE)"
 
-run-cron: run-cron-realtime run-cron-daily run-cron-snapshot
-
-run-cron-realtime: venv
-	CONFIG_FILE=$(CONFIG_FILE) $(PYTHON_BIN) app/update_realtime_prices.py
-
-run-cron-daily: venv
-	CONFIG_FILE=$(CONFIG_FILE) $(PYTHON_BIN) app/update_daily_price.py
-
-run-cron-snapshot: venv
-	CONFIG_FILE=$(CONFIG_FILE) $(PYTHON_BIN) app/update_portfolio_snapshot.py
-
 # =========================================================
 # Logrotate
 # =========================================================
 install-logrotate:
 	@echo "Installing logrotate config for CashCue..."
-	@sudo bash -c 'cat > /etc/logrotate.d/cashcue <<EOF
-		/var/log/cashcue/*.* {
-		daily
-		rotate 14
-		compress
-		delaycompress
-		missingok
-		notifempty
-		copytruncate
-		}
-	EOF'
+	@printf "%s\n" \
+	"/var/log/cashcue/*.* {" \
+	"	daily" \
+	"	rotate 14" \
+	"	compress" \
+	"	delaycompress" \
+	"	missingok" \
+	"	notifempty" \
+	"	copytruncate" \
+	"}" \
+	| sudo tee /etc/logrotate.d/cashcue > /dev/null
+	@sudo chmod 644 /etc/logrotate.d/cashcue
 	@echo "Logrotate config installed at /etc/logrotate.d/cashcue"
+
 
 # =========================================================
 # System setup
@@ -180,26 +210,7 @@ secure-logs:
 	@echo "Log directory secured (root:cashcue, 750)."
 
 # =========================================================
-# Deployment
-# =========================================================
-deploy: pre-install system-group install install-web init-db write-version cron secure-config secure-logs install-logrotate
-	@echo "Deployment completed successfully."
-
-upgrade: pre-install
-	@git pull --rebase
-	$(MAKE) install
-	$(MAKE) install-web
-	$(MAKE) install-config
-	$(MAKE) write-version
-	$(MAKE) cron
-	$(MAKE) install-logrotate
-	@echo "Upgrade completed."
-
-restart-service:
-	sudo systemctl restart cashcue.service
-
-# =========================================================
-# Development
+# Dev mode
 # =========================================================
 run-dev: venv
 	@echo "Starting FastAPI dev server..."
@@ -209,7 +220,7 @@ run-dev: venv
 		--reload \
 		--host 0.0.0.0 \
 		--port 8000
-	
+
 # =========================================================
 # Quality
 # =========================================================
@@ -228,7 +239,7 @@ clean:
 	rm -rf __pycache__ */__pycache__ .pytest_cache .mypy_cache
 
 # =========================================================
-# Uninstall (dangerous!)
+# Uninstall
 # =========================================================
 uninstall:
 	@echo "Removing CashCue installation..."
@@ -243,42 +254,10 @@ uninstall:
 help:
 	@echo "CashCue Makefile — available targets:"
 	@echo ""
-	@echo "Environment:"
-	@echo "  make venv            -> Create Python virtual environment"
-	@echo "  make install         -> Install Python backend"
+	@echo "  make install-latest               -> Install newest version from Git"
+	@echo "  make install-release RELEASE=x    -> Install specific tag/branch/commit"
+	@echo "  make check-gap RELEASE=x          -> Compare installed vs. target release"
 	@echo ""
-	@echo "Application:"
-	@echo "  make run-dev         -> Run FastAPI app locally"
-	@echo "  make run-cron        -> Run all cron jobs once"
-	@echo "  make run-cron-realtime -> Run realtime prices update"
-	@echo "  make run-cron-daily  -> Run daily prices update"
-	@echo "  make run-cron-snapshot -> Run portfolio snapshot update"
-	@echo ""
-	@echo "Database:"
-	@echo "  make init-db         -> Initialize database (script)"
-	@echo "  make create-db       -> Create DB from config"
-	@echo "  make drop-db         -> Drop DB from config"
-	@echo "  make db-migrate      -> Generate Alembic migration"
-	@echo "  make db-upgrade      -> Apply Alembic migrations"
-	@echo ""
-	@echo "Quality:"
-	@echo "  make test            -> Run pytest suite"
-	@echo "  make lint            -> Run flake8 + black"
-	@echo ""
-	@echo "Deployment:"
-	@echo "  make deploy          -> Full deployment (backend + web + config + DB + cron + logrotate)"
-	@echo "  make upgrade         -> Pull latest code and redeploy"
-	@echo "  make restart-service -> Restart systemd service"
-	@echo ""
-	@echo "System setup:"
-	@echo "  make install-config  -> Install default config"
-	@echo "  make secure-config   -> Secure /etc/cashcue/cashcue.conf"
-	@echo "  make secure-logs     -> Secure /var/log/cashcue"
-	@echo "  make install-logrotate -> Install logrotate rules"
-	@echo "  make system-group    -> Ensure 'cashcue' system group"
-	@echo ""
-	@echo "Misc:"
-	@echo "  make clean           -> Clean Python caches and temp files"
-	@echo "  make uninstall       -> Remove everything"
-	@echo "  make help            -> Show this help message"
-
+	@echo "  make deploy                       -> Full install (initial deployment)"
+	@echo "  make run-dev                      -> Run backend in dev mode"
+	@echo "  make uninstall                    -> Remove everything"
