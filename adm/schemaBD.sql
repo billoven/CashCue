@@ -30,9 +30,52 @@ CREATE TABLE `broker_account` (
   `account_type` enum('PEA','CTO','ASSURANCE_VIE','PER','OTHER') NOT NULL DEFAULT 'PEA',
   `currency` char(3) DEFAULT 'EUR',
   `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `has_cash_account` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Indique si le compte espèces est activé pour ce broker_account',
   PRIMARY KEY (`id`),
   UNIQUE KEY `account_number` (`account_number`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `cash_account`
+--
+
+DROP TABLE IF EXISTS `cash_account`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `cash_account` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `broker_id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `initial_balance` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `current_balance` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_cash_account_broker` (`broker_id`),
+  CONSTRAINT `fk_cash_account_broker` FOREIGN KEY (`broker_id`) REFERENCES `broker_account` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `cash_transaction`
+--
+
+DROP TABLE IF EXISTS `cash_transaction`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `cash_transaction` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `broker_account_id` int(11) NOT NULL,
+  `date` datetime NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `type` enum('BUY','SELL','DIVIDEND','DEPOSIT','WITHDRAWAL','FEES','ADJUSTMENT') NOT NULL,
+  `reference_id` int(11) DEFAULT NULL,
+  `comment` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `broker_account_id` (`broker_account_id`),
+  CONSTRAINT `cash_transaction_ibfk_1` FOREIGN KEY (`broker_account_id`) REFERENCES `broker_account` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -78,7 +121,7 @@ CREATE TABLE `dividend` (
   KEY `instrument_id` (`instrument_id`),
   CONSTRAINT `dividend_ibfk_1` FOREIGN KEY (`broker_id`) REFERENCES `broker_account` (`id`) ON DELETE CASCADE,
   CONSTRAINT `dividend_ibfk_2` FOREIGN KEY (`instrument_id`) REFERENCES `instrument` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -99,7 +142,7 @@ CREATE TABLE `instrument` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `symbol` (`symbol`),
   UNIQUE KEY `isin` (`isin`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -118,14 +161,14 @@ CREATE TABLE `order_transaction` (
   `price` decimal(12,4) NOT NULL,
   `fees` decimal(12,4) DEFAULT 0.0000,
   `total_cost` decimal(14,2) GENERATED ALWAYS AS (`quantity` * `price` + `fees`) STORED,
-  `trade_date` date NOT NULL,
+  `trade_date` datetime NOT NULL,
   `settled` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`),
   KEY `broker_id` (`broker_id`),
   KEY `instrument_id` (`instrument_id`),
   CONSTRAINT `order_transaction_ibfk_1` FOREIGN KEY (`broker_id`) REFERENCES `broker_account` (`id`) ON DELETE CASCADE,
   CONSTRAINT `order_transaction_ibfk_2` FOREIGN KEY (`instrument_id`) REFERENCES `instrument` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=43 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -148,7 +191,7 @@ CREATE TABLE `portfolio_snapshot` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `broker_id` (`broker_id`,`date`),
   CONSTRAINT `portfolio_snapshot_ibfk_1` FOREIGN KEY (`broker_id`) REFERENCES `broker_account` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -168,7 +211,7 @@ CREATE TABLE `realtime_price` (
   PRIMARY KEY (`id`),
   KEY `instrument_id` (`instrument_id`),
   CONSTRAINT `realtime_price_ibfk_1` FOREIGN KEY (`instrument_id`) REFERENCES `instrument` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=371 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=88715 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -180,4 +223,4 @@ CREATE TABLE `realtime_price` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-09-13 17:20:09
+-- Dump completed on 2025-12-12 14:37:04

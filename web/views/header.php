@@ -1,7 +1,20 @@
 <?php
 // views/header.php
+function cashcue_get_version(): string
+{
+    $versionFile = '/opt/cashcue/VERSION';
+
+    if (!is_readable($versionFile)) {
+        return 'version unknown';
+    }
+
+    $version = trim(@file_get_contents($versionFile));
+    return $version !== '' ? $version : 'version unavailable';
+}
+
+$CASHCUE_VERSION = cashcue_get_version();
 ?>
-<!DOCTYPE html>
+<DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -38,6 +51,7 @@
   <!-- Configuration exposée au JavaScript -->
   <script>
     window.__BROKER_SCOPE__ = "<?php echo $BROKER_SCOPE; ?>";
+    window.__CASHCUE_VERSION__ = "<?php echo htmlspecialchars($CASHCUE_VERSION); ?>";
   </script>
 
   <!-- Charger header.js APRES la configuration -->
@@ -93,13 +107,25 @@
             </span>
           </div>
           <!-- Right section: Account selector among Brokers -->
-          <div id="brokerAccountArea" class="d-flex align-items-center">
+          <div class="d-flex align-items-center gap-3">
+
+            <!-- Broker account selector -->
+            <div id="brokerAccountArea" class="d-flex align-items-center">
               <label for="activeAccountSelect" class="me-2 fw-semibold text-dark">Active Account:</label>
               <select id="activeAccountSelect"
                       class="form-select form-select-sm border-primary fw-semibold text-primary"
                       style="min-width:220px; font-size:0.95rem;">
                 <option value="all" selected>All Accounts</option>
               </select>
+            </div>
+
+            <!-- CashCue Version Badge -->
+            <span id="cashcueVersionBadge"
+                  class="badge rounded-pill bg-light text-secondary border"
+                  title="CashCue application version"
+                  style="font-weight:500;">
+              <?= htmlspecialchars($CASHCUE_VERSION) ?>
+            </span>
           </div>
         </div>
       </nav>
