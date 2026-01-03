@@ -1,1 +1,3 @@
-<?php\n// Helper functions placeholder\n?>
+<?php
+// Helper functions placeholder
+?>

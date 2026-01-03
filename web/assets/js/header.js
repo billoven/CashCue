@@ -36,6 +36,15 @@ window.onBrokerAccountChange = function (callback) {
     brokerChangeCallbacks.push(callback);
 };
 
+function dispatchBrokerChanged(accountId) {
+    document.dispatchEvent(
+        new CustomEvent("brokerChanged", {
+            detail: { brokerId: accountId }
+        })
+    );
+}
+
+
 // ------------------------------------------------------------
 // 3. DOM Content Loaded
 // ------------------------------------------------------------
@@ -128,6 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
             brokerSelectorReady = true;
             brokerSelectorCallbacks.forEach(cb => cb());
             brokerChangeCallbacks.forEach(cb => cb(select.value));
+            dispatchBrokerChanged(select.value);
 
             // Event Listener
             select.addEventListener("change", () => {
@@ -136,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.log("header.js: active account changed →", newVal);
 
                 brokerChangeCallbacks.forEach(cb => cb(newVal));
+                dispatchBrokerChanged(newVal);
 
                 if (BROKER_SCOPE === "portfolio") {
                     document.dispatchEvent(new CustomEvent("portfolioBrokerChanged", {

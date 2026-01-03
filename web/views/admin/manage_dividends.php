@@ -1,13 +1,13 @@
 <?php
   $BROKER_SCOPE = "single-or-all";
-  require_once __DIR__ . '/../includes/helpers.php';
-  require_once __DIR__ . '/header.php';
+  require_once __DIR__ . '/../../includes/helpers.php';
+  require_once __DIR__ . '/../header.php';
 ?>
 
 <div class="container-fluid px-4">
     <h1 class="mt-4">Dividends Management</h1>
     <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item"><a href="../index.php">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="../../index.php">Dashboard</a></li>
         <li class="breadcrumb-item active">Manage Dividends</li>
     </ol>
     
@@ -97,5 +97,5 @@
 
 <script src="/cashcue/assets/js/manage_dividends.js"></script>
 
-<?php require_once __DIR__ . '/footer.php'; ?>
+<?php require_once __DIR__ . '/../footer.php'; ?>
 

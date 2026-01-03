@@ -5,7 +5,7 @@ import pytest
 import requests
 import pymysql
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 
 # =============================================================================
 #  Add project root to PYTHONPATH
@@ -103,7 +103,7 @@ def test_broker(db):
     """
     cur = db.cursor()
 
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     name = f"TEST_CASH_{ts}"
 
     # Create broker account

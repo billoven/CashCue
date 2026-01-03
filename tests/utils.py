@@ -31,6 +31,32 @@ def expect_success(resp):
 
     return j
 
+def expect_ok(resp):
+    """
+    For READ-only APIs that return data directly (no success flag)
+    """
+    try:
+        body = resp.text.strip()
+        code = resp.status_code
+    except Exception as e:
+        raise AssertionError(f"HTTP request failed: {e}")
+
+    if code != 200:
+        raise AssertionError(f"API returned HTTP {code}. Body: {body}")
+
+    if not body:
+        raise AssertionError("API returned empty body")
+
+    try:
+        j = resp.json()
+    except Exception as e:
+        raise AssertionError(f"Response is not valid JSON: {e}. Body: {body}")
+
+    if not isinstance(j, dict):
+        raise AssertionError(f"Response JSON is not an object: {j}")
+
+    return j
+
 def sum_cash_db(cursor, broker_id):
     cursor.execute("SELECT COALESCE(SUM(amount),0) AS s FROM cash_transaction WHERE broker_account_id = %s", (broker_id,))
     return float(cursor.fetchone()["s"] or 0.0)

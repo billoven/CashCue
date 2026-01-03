@@ -44,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
         brokerSelect.innerHTML = '';
         instrumentSelect.innerHTML = '';
 
-        const brokersRes = await fetch('../api/getBrokers.php');
-        const instrumentsRes = await fetch('../api/getInstruments.php');
+        const brokersRes = await fetch('/cashcue/api/getBrokers.php');
+        const instrumentsRes = await fetch('/cashcue/api/getInstruments.php');
 
         let brokers = await brokersRes.json();
         let instruments = await instrumentsRes.json();
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------
     async function loadDividends() {
         try {
-            const res = await fetch('../api/getDividends.php');
+            const res = await fetch('/cashcue/api/getDividends.php');
             const json = await res.json();
             if (!json.success) throw new Error(json.error);
             renderTable(json.data);
@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------
     async function openEditModal(id) {
         await loadDropdowns();
-        const res = await fetch(`../api/getDividends.php?id=${id}`);
+        const res = await fetch(`/cashcue/api/getDividends.php?id=${id}`);
         const json = await res.json();
         if (!json.success || !json.data.length) return;
         const d = json.data[0];
@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currency: form.currency.value || 'EUR'
         };
 
-        const endpoint = id ? '../api/updateDividend.php' : '../api/addDividend.php';
+        const endpoint = id ? '/cashcue/api/updateDividend.php' : '/cashcue/api/addDividend.php';
         try {
             const res = await fetch(endpoint, {
                 method: 'POST',
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function deleteDividend(id) {
         if (!confirm('Delete this dividend?')) return;
         try {
-            const res = await fetch('../api/deleteDividend.php', {
+            const res = await fetch('/cashcue/api/deleteDividend.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })

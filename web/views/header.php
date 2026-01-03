@@ -14,7 +14,7 @@ function cashcue_get_version(): string
 
 $CASHCUE_VERSION = cashcue_get_version();
 ?>
-<DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -62,33 +62,54 @@ $CASHCUE_VERSION = cashcue_get_version();
 <body>
   <div id="wrapper">
 
-    <!-- Sidebar -->
+  <!-- Sidebar -->
     <div class="bg-dark border-end" id="sidebar-wrapper">
       <div class="sidebar-heading text-white p-3 fs-4 text-center">
-        💹 <strong>CashCue</strong>
+        <strong>CashCue</strong>
       </div>
+
       <div class="list-group list-group-flush">
-        <a href="/cashcue/index.php" class="list-group-item list-group-item-action bg-dark text-white">
+
+        <a href="/cashcue/index.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
           <i class="bi bi-speedometer2 me-2"></i> Dashboard
         </a>
-        <a href="/cashcue/views/admin/manage_orders.php" class="list-group-item list-group-item-action bg-dark text-white">
+
+        <a href="/cashcue/views/admin/manage_orders.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
           <i class="bi bi-currency-exchange me-2"></i> Orders
         </a>
-        <a href="/cashcue/views/admin/manage_instruments.php" class="list-group-item list-group-item-action bg-dark text-white">
+
+        <a href="/cashcue/views/admin/manage_instruments.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
           <i class="bi bi-bar-chart-line me-2"></i> Instruments
         </a>
-        <a href="/cashcue/views/portfolio.php" class="list-group-item list-group-item-action bg-dark text-white">
+
+        <a href="/cashcue/views/portfolio.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
           <i class="bi bi-briefcase me-2"></i> Portfolio
         </a>
-        <a href="/cashcue/views/admin/manage_brokers.php" class="list-group-item list-group-item-action bg-dark text-white">
+
+        <!-- Cash domain -->
+        <a href="/cashcue/views/cash.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
+          <i class="bi bi-wallet2 me-2"></i> Cash
+        </a>
+
+        <a href="/cashcue/views/admin/manage_brokers.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
           <i class="bi bi-bank me-2"></i> Brokers
         </a>
-        <a href="/cashcue/views/manage_dividends.php" class="list-group-item list-group-item-action bg-dark text-white">          
-          <i class="bi bi-cash-coin"></i> Dividends
+
+        <a href="/cashcue/views/admin/manage_dividends.php"
+          class="list-group-item list-group-item-action bg-dark text-white">
+          <i class="bi bi-cash-coin me-2"></i> Dividends
         </a>
+
       </div>
     </div>
     <!-- /#sidebar-wrapper -->
+
 
     <!-- Page content wrapper -->
     <div id="page-content-wrapper" class="w-100">
