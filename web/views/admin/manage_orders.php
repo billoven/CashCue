@@ -34,6 +34,8 @@
             <th>Fees (€)</th>
             <th>Total (€)</th>
             <th>Trade Date</th>
+            <th>Status</th>
+            <th>Cancelled at</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -42,6 +44,7 @@
         </tbody>
       </table>
     </div>
+
 
     <!-- Pagination -->
     <div class="d-flex justify-content-between align-items-center mt-3 mb-5">

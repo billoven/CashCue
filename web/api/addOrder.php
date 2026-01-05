@@ -57,19 +57,46 @@ try {
     // ----------------------
     $stmt = $pdo->prepare("
         INSERT INTO order_transaction
-        (broker_id, instrument_id, order_type, quantity, price, fees, trade_date, settled)
-        VALUES (:broker_account_id, :instrument_id, :order_type, :quantity, :price, :fees, :trade_date, :settled)
+        (
+        broker_id,
+        instrument_id,
+        order_type,
+        quantity,
+        price,
+        fees,
+        trade_date,
+        settled,
+        status,
+        cancelled_at
+        )
+        VALUES
+        (
+        :broker_account_id,
+        :instrument_id,
+        :order_type,
+        :quantity,
+        :price,
+        :fees,
+        :trade_date,
+        :settled,
+        :status,
+        :cancelled_at
+        )
     ");
+
     $stmt->execute([
         ':broker_account_id' => $broker_account_id,
-        ':instrument_id' => $instrument_id,
-        ':order_type' => $order_type,
-        ':quantity' => $quantity,
-        ':price' => $price,
-        ':fees' => $fees,
-        ':trade_date' => $trade_date,
-        ':settled' => $settled
+        ':instrument_id'     => $instrument_id,
+        ':order_type'        => $order_type,
+        ':quantity'          => $quantity,
+        ':price'             => $price,
+        ':fees'              => $fees,
+        ':trade_date'        => $trade_date,
+        ':settled'           => $settled,
+        ':status'            => 'ACTIVE',
+        ':cancelled_at'      => null
     ]);
+
     $order_id = (int)$pdo->lastInsertId();
     error_log("DEBUG: inserted order_transaction with id $order_id");
 

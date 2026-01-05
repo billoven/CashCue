@@ -70,3 +70,37 @@ body {
 /* Small style extras */
 .sidebar-heading { font-weight: 600; border-bottom: 1px solid #444; }
 .list-group-item:hover { background-color: #0d6efd; color: white !important; }
+
+/* ============================================================
+   Cancel Order Action (FINAL)
+   ============================================================ */
+
+.cancel-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 1.4rem;
+  line-height: 1;
+
+  user-select: none;
+}
+
+/* Active (clickable) */
+.cancel-action.is-active {
+  color: #dc3545; /* Bootstrap danger */
+  cursor: pointer;
+}
+
+.cancel-action.is-active:hover {
+  color: #a71d2a;
+  transform: scale(1.1);
+}
+
+/* Disabled (already cancelled) */
+.cancel-action.is-disabled {
+  color: #adb5bd;
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}

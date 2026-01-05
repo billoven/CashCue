@@ -165,22 +165,27 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${parseFloat(o.total_value || o.total || 0).toFixed(2)}</td>
         <td>${o.trade_date}</td>
         <td>
-          <button class="btn btn-sm btn-outline-primary me-1 edit-btn" data-id="${o.id}">
-            <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${o.id}">
-            <i class="bi bi-trash"></i>
-          </button>
+          ${o.status === 'ACTIVE'
+            ? '<span class="badge bg-success">ACTIVE</span>'
+            : '<span class="badge bg-secondary">CANCELLED</span>'}
+        </td>
+        <td>${o.cancelled_at ?? '—'}</td>
+        <td class="text-center">
+          <span
+            class="cancel-action ${o.status === 'CANCELLED' ? 'is-disabled' : 'is-active'}"
+            data-id="${o.id}"
+            role="button"
+            aria-label="Cancel order"
+            title="${o.status === 'CANCELLED'
+              ? 'Order already cancelled'
+              : 'Cancel order (creates a cash reversal)'}"
+          >
+            <i class="bi bi-x-circle-fill"></i>
+          </span>
         </td>
       `;
       tableBody.appendChild(tr);
     });
-
-    document.querySelectorAll(".edit-btn")
-      .forEach(btn => btn.addEventListener("click", handleEdit));
-
-    document.querySelectorAll(".delete-btn")
-      .forEach(btn => btn.addEventListener("click", handleDelete));
   }
 
   // ============================================================
@@ -210,64 +215,82 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
-  //   EDIT ORDER
+  //   SAVE ORDER (ADD ONLY)
   // ============================================================
-  async function handleEdit(e) {
-    const id = e.currentTarget.dataset.id;
+  if (btnSave) {
+    btnSave.addEventListener("click", async (e) => {
+      e.preventDefault();
 
-    try {
-      const res = await fetch(`/cashcue/api/getOrderDetails.php?id=${id}`);
-      const json = await res.json();
-      if (json.status !== "success") throw new Error(json.message);
+      try {
+        const broker_account_id = safeGetActiveBrokerAccountId();
 
-      const o = json.data;
-
-      document.getElementById("order_id").value = o.id;
-      document.getElementById("instrument_id").value = o.instrument_id;
-      document.getElementById("order_type").value = o.order_type;
-      document.getElementById("quantity").value = o.quantity;
-      document.getElementById("price").value = o.price;
-      document.getElementById("fees").value = o.fees ?? 0;
-
-      setTimeout(() => {
-        if (tradeDatePicker && typeof tradeDatePicker.setDate === "function") {
-          tradeDatePicker.setDate(o.trade_date, true, "Y-m-d H:i:S");
-        } else {
-          // If datepicker not initialized yet, set the input value directly
-          const inp = document.getElementById("trade_date");
-          if (inp) inp.value = o.trade_date;
+        if (!broker_account_id || broker_account_id === "all") {
+          alert("Please select a broker account.");
+          return;
         }
-      }, 50);
 
-      modalEl.querySelector(".modal-title").textContent = "✏️ Edit Order";
-      modal.show();
+        const payload = {
+          broker_account_id: broker_account_id,
+          instrument_id: document.getElementById("instrument_id").value,
+          order_type: document.getElementById("order_type").value,
+          quantity: document.getElementById("quantity").value,
+          price: document.getElementById("price").value,
+          fees: document.getElementById("fees").value || 0,
+          trade_date: document.getElementById("trade_date").value,
+          settled: document.getElementById("settled")?.checked ? 1 : 0
+        };
 
-    } catch (err) {
-      console.error("Error loading order details:", err);
-    }
+        // Validation minimale
+        for (const k of ["instrument_id", "order_type", "quantity", "price", "trade_date"]) {
+          if (!payload[k]) {
+            throw new Error(`Missing field: ${k}`);
+          }
+        }
+
+        const res = await fetch("/cashcue/api/addOrder.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+
+        if (!json.success) {
+          throw new Error(json.error || "Failed to add order");
+        }
+
+        // Succès
+        modal.hide();
+        window.refreshPageData();
+
+      } catch (err) {
+        console.error("Error adding order:", err);
+        alert(err.message || "Error while saving order");
+      }
+    });
   }
 
-  // ============================================================
-  //   DELETE ORDER
-  // ============================================================
-  async function handleDelete(e) {
-    const id = e.currentTarget.dataset.id;
 
-    if (!confirm("Delete this order?")) return;
+  async function cancelOrder(orderId) {
+    if (!confirm(
+      "Cancelling this order will create a cash reversal.\n" +
+      "This action is irreversible.\n\n" +
+      "Do you want to continue?"
+    )) return;
 
     try {
-      const res = await fetch(`/cashcue/api/deleteOrder.php?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/cashcue/api/cancelOrder.php?id=${orderId}`);
       const json = await res.json();
 
-      if (!json.success && json.status !== "success") {
-        throw new Error(json.message || json.error);
+      if (!json.success) {
+        throw new Error(json.error || "Cancel failed");
       }
 
       loadOrders();
 
     } catch (err) {
-      console.error("Error deleting order:", err);
-      alert("Error deleting order.");
+      console.error("Error cancelling order:", err);
+      alert(err.message || "Error cancelling order.");
     }
   }
 
@@ -333,5 +356,19 @@ document.addEventListener("DOMContentLoaded", () => {
     window.refreshPageData();
   }
 
-});
+  // ============================================================
+  // Cancel order handler (event delegation)
+  // ============================================================
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest(".cancel-action");
+    if (!el) return;
 
+    // Order already cancelled → do nothing
+    if (el.classList.contains("disabled")) {
+      return;
+    }
+
+    const orderId = el.dataset.id;
+    cancelOrder(orderId);
+  });
+});

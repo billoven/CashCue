@@ -30,6 +30,8 @@ try {
                 END, 2
             ) AS total,
             ot.trade_date,
+            ot.status,
+            ot.cancelled_at,
             CONCAT(b.name, '_', b.account_type) AS broker_full_name
         FROM order_transaction ot
         JOIN instrument i ON i.id = ot.instrument_id
@@ -61,8 +63,8 @@ try {
         $row['price']    = (float) $row['price'];
         $row['fees']     = (float) $row['fees'];
         $row['total']    = (float) $row['total'];
+        $row['cancelled_at'] = $row['cancelled_at'] ?: null;
     }
-
     echo json_encode([
         "status" => "success",
         "data"   => $rows

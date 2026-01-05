@@ -1,0 +1,86 @@
+<?php
+require_once __DIR__ . '/../config/database.php';
+header('Content-Type: application/json; charset=utf-8');
+
+try {
+    if (!isset($_GET['id'])) throw new Exception('Missing dividend id');
+
+    $div_id = (int)$_GET['id'];
+
+    $db = new Database();
+    $pdo = $db->getConnection();
+
+    $pdo->beginTransaction();
+
+    // 1️⃣ Récupérer le dividend actif
+    $sel = $pdo->prepare("
+        SELECT id, broker_id, amount, status 
+        FROM dividend 
+        WHERE id = :id 
+        LIMIT 1
+    ");
+    $sel->execute([':id' => $div_id]);
+    $dividend = $sel->fetch(PDO::FETCH_ASSOC);
+    if (!$dividend) throw new Exception('Dividend not found');
+    if ($dividend['status'] !== 'ACTIVE') throw new Exception('Dividend is already cancelled');
+
+    $broker_id = (int)$dividend['broker_id'];
+    $amount = (float)$dividend['amount'];
+
+    // 2️⃣ Marquer le dividend comme CANCELLED
+    $updDividend = $pdo->prepare("
+        UPDATE dividend
+        SET status = 'CANCELLED', cancelled_at = NOW()
+        WHERE id = :id
+    ");
+    $updDividend->execute([':id' => $div_id]);
+
+    // 3️⃣ Créer le cash reversal
+    $insCash = $pdo->prepare("
+        INSERT INTO cash_transaction
+        (broker_account_id, date, amount, type, reference_id, comment)
+        VALUES (:broker_id, NOW(), :amount, 'DIVIDEND', :ref, :comment)
+    ");
+    $insCash->execute([
+        ':broker_id' => $broker_id,
+        ':amount' => -$amount, // Reversal
+        ':ref' => $div_id,
+        ':comment' => "Reversal of dividend #$div_id"
+    ]);
+
+    // 4️⃣ Mettre à jour le solde cash du broker
+    $sumStmt = $pdo->prepare("
+        SELECT COALESCE(SUM(amount),0) AS sum_amount 
+        FROM cash_transaction 
+        WHERE broker_account_id = :broker_id
+    ");
+    $sumStmt->execute([':broker_id' => $broker_id]);
+    $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
+
+    $updBalance = $pdo->prepare("
+        UPDATE cash_account 
+        SET current_balance = :bal, updated_at = NOW() 
+        WHERE broker_id = :broker_id
+    ");
+    $updBalance->execute([
+        ':bal' => $sumRow['sum_amount'],
+        ':broker_id' => $broker_id
+    ]);
+
+    $pdo->commit();
+
+    // ✅ Retour JSON complet
+    echo json_encode([
+        'success' => true,
+        'dividend_id' => $div_id,
+        'new_status' => 'CANCELLED',
+        'cash_reversal_amount' => -$amount,
+        'broker_balance' => $sumRow['sum_amount']
+    ]);
+
+} catch (Exception $e) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(400);
+    echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
+}
+
