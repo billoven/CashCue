@@ -3,13 +3,17 @@ require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json; charset=utf-8');
 
 try {
-    if (!isset($_GET['id'])) throw new Exception('Missing dividend id');
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
 
-    $div_id = (int)$_GET['id'];
+    if (!isset($data['id'])) {
+        throw new Exception('Missing dividend id');
+    }
+
+    $div_id = (int)$data['id'];
 
     $db = new Database();
     $pdo = $db->getConnection();
-
     $pdo->beginTransaction();
 
     // 1️⃣ Récupérer le dividend actif

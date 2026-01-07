@@ -1,56 +1,54 @@
+// ============================================================
+// Dividends Management
+// Aligned with Orders lifecycle (ACTIVE / CANCELLED)
+// ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+
+    // --------------------------------------------------------
+    // DOM references
+    // --------------------------------------------------------
+
     const tableBody = document.querySelector('#dividendsTable tbody');
-    const modal = new bootstrap.Modal(document.getElementById('dividendModal'));
+    const modalEl = document.getElementById('dividendModal');
+    const modal = new bootstrap.Modal(modalEl);
     const form = document.getElementById('dividendForm');
+
     const addBtn = document.getElementById('addDividendBtn');
     const saveBtn = document.getElementById('saveDividendBtn');
 
-    // Auto-calc net amount
+    // --------------------------------------------------------
+    // Auto-calculate net amount = gross - taxes
+    // --------------------------------------------------------
     const grossField = document.getElementById('gross_amount');
     const taxesField = document.getElementById('taxes_withheld');
     const amountField = document.getElementById('amount');
-    [grossField, taxesField].forEach(f => f.addEventListener('input', () => {
-        const gross = parseFloat(grossField.value) || 0;
-        const taxes = parseFloat(taxesField.value) || 0;
-        amountField.value = (gross - taxes).toFixed(4);
-    }));
 
-    // ---------------------------
-    // Generic function to populate a <select> dropdown
-    async function populateSelect(selectId, apiUrl, textFormatter = x => x.name) {
-        const select = document.getElementById(selectId);
-        if (!select) return;
+    [grossField, taxesField].forEach(field =>
+        field.addEventListener('input', () => {
+            const gross = parseFloat(grossField.value) || 0;
+            const taxes = parseFloat(taxesField.value) || 0;
+            amountField.value = (gross - taxes).toFixed(4);
+        })
+    );
 
-        select.innerHTML = '<option value="">Select...</option>';
-
-        try {
-            const res = await fetch(apiUrl);
-            const items = await res.json(); // use array directly
-            items.forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item.id;
-                opt.textContent = textFormatter(item);
-                select.appendChild(opt);
-            });
-        } catch (err) {
-            console.error(`Error loading ${selectId}:`, err);
-        }
-    }
-
-    // Load both dropdowns
+    // --------------------------------------------------------
+    // Load dropdowns (brokers & instruments)
+    // --------------------------------------------------------
     async function loadDropdowns() {
         const brokerSelect = document.getElementById('broker_id');
         const instrumentSelect = document.getElementById('instrument_id');
+
         brokerSelect.innerHTML = '';
         instrumentSelect.innerHTML = '';
 
-        const brokersRes = await fetch('/cashcue/api/getBrokers.php');
-        const instrumentsRes = await fetch('/cashcue/api/getInstruments.php');
+        const [brokersRes, instrumentsRes] = await Promise.all([
+            fetch('/cashcue/api/getBrokers.php'),
+            fetch('/cashcue/api/getInstruments.php')
+        ]);
 
         let brokers = await brokersRes.json();
         let instruments = await instrumentsRes.json();
 
-        // If the API returns { data: [...] }, unwrap it
         if (brokers.data) brokers = brokers.data;
         if (instruments.data) instruments = instruments.data;
 
@@ -69,28 +67,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
-    // ---------------------------
+    // --------------------------------------------------------
+    // Load dividends from API
+    // --------------------------------------------------------
     async function loadDividends() {
+
+        const brokerAccountId = window.getActiveBrokerAccountId();
+
         try {
-            const res = await fetch('/cashcue/api/getDividends.php');
+            const url = new URL('/cashcue/api/getDividends.php', window.location.origin);
+
+            if (brokerAccountId && brokerAccountId !== "all") {
+                url.searchParams.append('broker_id', brokerAccountId);
+            }
+
+            const res = await fetch(url);
             const json = await res.json();
+
             if (!json.success) throw new Error(json.error);
+
             renderTable(json.data);
+
         } catch (err) {
             console.error('Error loading dividends:', err);
-            tableBody.innerHTML = `<tr><td colspan="8" class="text-danger">Error loading dividends</td></tr>`;
+            tableBody.innerHTML =
+                `<tr>
+                    <td colspan="9" class="text-danger text-center">
+                        Error loading dividends
+                    </td>
+                </tr>`;
         }
     }
 
+
+    // --------------------------------------------------------
+    // Render dividends table
+    // --------------------------------------------------------
     function renderTable(dividends) {
         tableBody.innerHTML = '';
+
         if (!dividends || dividends.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="8" class="text-center">No dividends recorded</td></tr>';
+            tableBody.innerHTML =
+                '<tr><td colspan="9" class="text-center">No dividends recorded</td></tr>';
             return;
         }
 
         dividends.forEach(d => {
+            const isCancelled = d.status === 'CANCELLED';
+
+            const statusBadge = isCancelled
+                ? '<span class="badge bg-secondary">CANCELLED</span>'
+                : '<span class="badge bg-success">ACTIVE</span>';
+
+            const cancelIconClass = isCancelled
+                ? 'text-muted'
+                : 'text-danger cancel-dividend';
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${d.payment_date}</td>
@@ -100,56 +132,102 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${parseFloat(d.taxes_withheld || 0).toFixed(4)}</td>
                 <td>${parseFloat(d.amount).toFixed(4)}</td>
                 <td>${d.currency}</td>
-                <td>
-                    <button class="btn btn-sm btn-outline-primary me-1 edit-btn" data-id="${d.id}"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${d.id}"><i class="bi bi-trash"></i></button>
+                <td>${statusBadge}</td>
+                <td>${d.cancelled_at ?? '—'}</td>
+                <td class="text-center">
+                    <span
+                        class="cancel-action ${d.status === 'CANCELLED' ? 'is-disabled' : 'is-active'}"
+                        data-id="${d.id}"
+                        role="button"
+                        aria-label="Cancel order"
+                        title="${d.status === 'CANCELLED'
+                        ? 'Dividend already cancelled'
+                        : 'Cancel dividend (creates a cash reversal)'}"
+                    >
+                        <i class="bi bi-x-circle-fill"></i>
+                    </span>
                 </td>
             `;
             tableBody.appendChild(tr);
         });
-
-        document.querySelectorAll('.edit-btn').forEach(btn =>
-            btn.addEventListener('click', e => openEditModal(e.target.closest('button').dataset.id))
-        );
-        document.querySelectorAll('.delete-btn').forEach(btn =>
-            btn.addEventListener('click', e => deleteDividend(e.target.closest('button').dataset.id))
-        );
     }
 
-    // ---------------------------
-    async function openEditModal(id) {
-        await loadDropdowns();
-        const res = await fetch(`/cashcue/api/getDividends.php?id=${id}`);
-        const json = await res.json();
-        if (!json.success || !json.data.length) return;
-        const d = json.data[0];
+    // --------------------------------------------------------
+    // Cancel dividend (logical cancel)
+    // --------------------------------------------------------
+    async function cancelDividend(id) {
+        if (!confirm(
+            "Cancelling this Dividend will create a cash reversal.\n" +
+            "This action is irreversible.\n\n" +
+            "Do you want to continue?"
+        )) return;
 
-        document.getElementById('dividend_id').value = d.id;
-        document.getElementById('broker_id').value = d.broker_id;
-        document.getElementById('instrument_id').value = d.instrument_id;
-        document.getElementById('payment_date').value = d.payment_date;
-        document.getElementById('gross_amount').value = d.gross_amount;
-        document.getElementById('taxes_withheld').value = d.taxes_withheld;
-        document.getElementById('amount').value = d.amount;
-        document.getElementById('currency').value = d.currency;
+        try {
+            const res = await fetch('/cashcue/api/cancelDividend.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
 
-        document.getElementById('dividendModalLabel').textContent = 'Edit Dividend';
-        modal.show();
+            const json = await res.json();
+            if (!json.success) throw new Error(json.error);
+
+            await loadDividends();
+
+        } catch (err) {
+            console.error('Error cancelling dividend:', err);
+            alert(err.message || 'Cancel failed');
+        }
     }
 
-    // ---------------------------
+    // --------------------------------------------------------
+    // Event delegation for CANCEL
+    // --------------------------------------------------------
+    //tableBody.addEventListener('click', (e) => {
+    //
+    //    const cancelBtn = e.target.closest('.cancel-dividend'c);
+    //    if (cancelBtn) {
+    //        cancelDividend(cancelBtn.dataset.id);
+    //    }
+    //});
+    
+    // ============================================================
+    // Cancel order handler (event delegation)
+    // ============================================================
+    document.addEventListener("click", (e) => {
+
+        const el = e.target.closest(".cancel-action");
+        if (!el) return;
+
+        // Dividend already cancelled → do nothing
+        if (el.classList.contains("is-disabled")) {
+            return;
+        }
+
+        const dividendId = el.dataset.id;
+        if (!dividendId) return;
+
+        cancelDividend(dividendId);
+    });
+    
+    // --------------------------------------------------------
+    // Add dividend
+    // --------------------------------------------------------
     addBtn.addEventListener('click', async () => {
         form.reset();
-        document.getElementById('dividend_id').value = '';
+        form.dividend_id.value = '';
         await loadDropdowns();
         document.getElementById('dividendModalLabel').textContent = 'Add Dividend';
         modal.show();
     });
 
-    saveBtn.addEventListener('click', async () => {
-        const id = document.getElementById('dividend_id').value;
+    // --------------------------------------------------------
+    // Save dividend (ADD ONLY — immutable model)
+    // --------------------------------------------------------
+    saveBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+
         const payload = {
-            id: id || undefined,
             broker_id: form.broker_id.value,
             instrument_id: form.instrument_id.value,
             payment_date: form.payment_date.value,
@@ -159,39 +237,41 @@ document.addEventListener('DOMContentLoaded', () => {
             currency: form.currency.value || 'EUR'
         };
 
-        const endpoint = id ? '/cashcue/api/updateDividend.php' : '/cashcue/api/addDividend.php';
         try {
-            const res = await fetch(endpoint, {
+            const res = await fetch('/cashcue/api/addDividend.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+
             const json = await res.json();
             if (!json.success) throw new Error(json.error);
+
             modal.hide();
             await loadDividends();
+
         } catch (err) {
-            alert('Error saving dividend: ' + err.message);
+            alert('Error adding dividend: ' + err.message);
         }
     });
 
-    // ---------------------------
-    async function deleteDividend(id) {
-        if (!confirm('Delete this dividend?')) return;
-        try {
-            const res = await fetch('/cashcue/api/deleteDividend.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id })
-            });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.error);
+
+    // --------------------------------------------------------
+    // Initial load — broker-aware
+    // --------------------------------------------------------
+    (async () => {
+
+        // Wait until header.js finished initializing broker selector
+        await window.waitForBrokerSelector();
+
+        // Initial load with correct broker context
+        await loadDividends();
+
+        // Reload dividends when broker account changes
+        window.onBrokerAccountChange(async () => {
             await loadDividends();
-        } catch (err) {
-            alert('Error deleting dividend: ' + err.message);
-        }
-    }
+        });
 
-    loadDividends();
+    })();
+
 });
-
