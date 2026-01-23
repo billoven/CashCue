@@ -62,7 +62,7 @@ This document covers **BUY, SELL, DIVIDEND** only.
 | --------------------- | -------------------------- |
 | cash_transaction.type | BUY                        |
 | amount                | -(quantity × price + fees) |
-| broker_account_id     | order.broker_id            |
+| broker_account_id     | order.broker_account_id    |
 | date                  | order.trade_date           |
 | reference_id          | order.id                   |
 
@@ -81,7 +81,7 @@ Result:
 | --------------------- | -------------------------- |
 | cash_transaction.type | SELL                       |
 | amount                | +(quantity × price − fees) |
-| broker_account_id     | order.broker_id            |
+| broker_account_id     | order.broker_account_id    |
 | date                  | order.trade_date           |
 | reference_id          | order.id                   |
 
@@ -104,7 +104,7 @@ Generated cash entry:
 | ----------------- | --------------------------- |
 | type              | BUY                         |
 | amount            | +(original BUY cash amount) |
-| broker_account_id | order.broker_id             |
+| broker_account_id | order.broker_account_id     |
 | date              | cancellation datetime       |
 | reference_id      | order.id                    |
 | comment           | Reversal of BUY order #id   |
@@ -126,7 +126,7 @@ Generated cash entry:
 | ----------------- | ---------------------------- |
 | type              | SELL                         |
 | amount            | −(original SELL cash amount) |
-| broker_account_id | order.broker_id              |
+| broker_account_id | order.broker_account_id      |
 | date              | cancellation datetime        |
 | reference_id      | order.id                     |
 | comment           | Reversal of SELL order #id   |
@@ -144,13 +144,13 @@ Result:
 
 **Trigger:** INSERT dividend
 
-| Attribute             | Value                 |
-| --------------------- | --------------------- |
-| cash_transaction.type | DIVIDEND              |
-| amount                | +dividend.amount      |
-| broker_account_id     | dividend.broker_id    |
-| date                  | dividend.payment_date |
-| reference_id          | dividend.id           |
+| Attribute             | Value                     |
+| --------------------- | ------------------------- |
+| cash_transaction.type | DIVIDEND                  |
+| amount                | +dividend.amount          |
+| broker_account_id     | dividend.broker_account_id|
+| date                  | dividend.payment_date     |
+| reference_id          | dividend.id               |
 
 Result:
 
@@ -171,7 +171,7 @@ Generated cash entry:
 | ----------------- | --------------------------- |
 | type              | DIVIDEND                    |
 | amount            | −(original dividend.amount) |
-| broker_account_id | dividend.broker_id          |
+| broker_account_id | dividend.broker_account_id  |
 | date              | cancellation datetime       |
 | reference_id      | dividend.id                 |
 | comment           | Reversal of dividend #id    |

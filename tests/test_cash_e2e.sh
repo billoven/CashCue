@@ -44,8 +44,8 @@ INSERT INTO broker_account (name, account_type, currency, has_cash_account)
 VALUES ('TEST_CASH', 'PEA', 'EUR', 1);
 EOF
 
-BROKER_ID=$($MYSQL -e "SELECT id FROM broker_account WHERE name='TEST_CASH' LIMIT 1;")
-echo "  -> broker_account_id = $BROKER_ID"
+BROKER_ACCOUNT_ID=$($MYSQL -e "SELECT id FROM broker_account WHERE name='TEST_CASH' LIMIT 1;")
+echo "  -> broker_account_id = $BROKER_ACCOUNT_ID"
 
 # ------------------------------
 # 3. Create cash_account
@@ -54,12 +54,12 @@ echo "  -> broker_account_id = $BROKER_ID"
 echo "[TEST] Creating cash_account..."
 
 $MYSQL <<EOF
-DELETE FROM cash_account WHERE broker_id = $BROKER_ID;
+DELETE FROM cash_account WHERE broker_account_id = $BROKER_ACCOUNT_ID;
 EOF
 
 $MYSQL <<EOF
-INSERT INTO cash_account (broker_id, name, initial_balance, current_balance)
-VALUES ($BROKER_ID, 'Cash TEST', 0.00, 0.00);
+INSERT INTO cash_account (broker_account_id, name, initial_balance, current_balance)
+VALUES ($BROKER_ACCOUNT_ID, 'Cash TEST', 0.00, 0.00);
 EOF
 
 echo "  -> cash_account created"
@@ -71,8 +71,8 @@ echo "  -> cash_account created"
 echo "[TEST] Cleaning transactions..."
 
 $MYSQL <<EOF
-DELETE FROM cash_transaction WHERE broker_account_id = $BROKER_ID;
-DELETE FROM order_transaction WHERE broker_id = $BROKER_ID;
+DELETE FROM cash_transaction WHERE broker_account_id = $BROKER_ACCOUNT_ID;
+DELETE FROM order_transaction WHERE broker_account_id = $BROKER_ACCOUNT_ID;
 EOF
 
 echo "  -> OK"
@@ -86,7 +86,7 @@ echo "[TEST] Calling addOrder.php (BUY 100x10) ..."
 ORDER1=$(curl -s -X POST http://localhost/cashcue/api/addOrder.php \
     -H "Content-Type: application/json" \
     -d "{
-        \"broker_id\": $BROKER_ID,
+        \"broker_account_id\": $BROKER_ACCOUNT_ID,
         \"instrument_id\": 1,
         \"order_type\": \"BUY\",
         \"quantity\": 100,
@@ -100,7 +100,7 @@ ORDER1_ID=$(echo "$ORDER1" | sed -n 's/.*"order_id":[ ]*\([0-9]*\).*/\1/p')
 
 echo "  -> order_id = $ORDER1_ID"
 
-BAL1=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_id=$BROKER_ID;")
+BAL1=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_account_id=$BROKER_ACCOUNT_ID;")
 echo "  -> cash balance after BUY = $BAL1 (expected: -1002.00)"
 
 # ------------------------------
@@ -112,7 +112,7 @@ echo "[TEST] Calling addOrder.php (SELL 50x20) ..."
 ORDER2=$(curl -s -X POST http://localhost/cashcue/api/addOrder.php \
     -H "Content-Type: application/json" \
     -d "{
-        \"broker_id\": $BROKER_ID,
+        \"broker_account_id\": $BROKER_ACCOUNT_ID,
         \"instrument_id\": 1,
         \"order_type\": \"SELL\",
         \"quantity\": 50,
@@ -124,7 +124,7 @@ ORDER2=$(curl -s -X POST http://localhost/cashcue/api/addOrder.php \
 echo "  -> Response: $ORDER2"
 ORDER2_ID=$(echo "$ORDER2" | sed -n 's/.*"order_id":[ ]*\([0-9]*\).*/\1/p')
 
-BAL2=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_id=$BROKER_ID;")
+BAL2=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_account_id=$BROKER_ACCOUNT_ID;")
 echo "  -> cash balance after SELL = $BAL2 (expected: -1002 + 998 = -4.00)"
 
 # ------------------------------
@@ -144,7 +144,7 @@ UPDATE1=$(curl -s -X POST http://localhost/cashcue/api/updateOrder.php \
 
 echo "  -> Response: $UPDATE1"
 
-BAL3=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_id=$BROKER_ID;")
+BAL3=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_account_id=$BROKER_ACCOUNT_ID;")
 echo "  -> cash balance after UPDATE = $BAL3 (expected: -(200*8+1) + 998 = -1601 + 998 = -603.00)"
 
 # ------------------------------
@@ -156,14 +156,14 @@ echo "[TEST] Deleting SELL order ..."
 DEL2=$(curl -s "http://localhost/cashcue/api/deleteOrder.php?id=$ORDER2_ID")
 echo "  -> Response: $DEL2"
 
-BAL4=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_id=$BROKER_ID;")
+BAL4=$($MYSQL -e "SELECT current_balance FROM cash_account WHERE broker_account_id=$BROKER_ACCOUNT_ID;")
 echo "  -> cash balance after DELETE = $BAL4 (expected: -1601.00)"
 
 # ------------------------------
 # 9. Final consistency check
 # ------------------------------
 
-SUM=$($MYSQL -e "SELECT COALESCE(SUM(amount),0) FROM cash_transaction WHERE broker_account_id=$BROKER_ID;")
+SUM=$($MYSQL -e "SELECT COALESCE(SUM(amount),0) FROM cash_transaction WHERE broker_account_id=$BROKER_ACCOUNT_ID;")
 
 echo ""
 echo "[FINAL CHECK] SUM(cash_transaction.amount) = $SUM"

@@ -53,7 +53,7 @@ class PortfolioSnapshotUpdater:
             cur.execute(sql)
             return cur.fetchall()
 
-    def fetch_instruments(self, broker_id):
+    def fetch_instruments(self, broker_account_id):
         sql = """
             SELECT o.instrument_id, i.label, i.symbol,
                    SUM(CASE WHEN o.order_type='BUY' THEN o.quantity ELSE 0 END) -
@@ -61,11 +61,11 @@ class PortfolioSnapshotUpdater:
                    SUM(CASE WHEN o.order_type='BUY' THEN o.total_cost ELSE 0 END) AS invested_amount
             FROM order_transaction o
             JOIN instrument i ON i.id=o.instrument_id
-            WHERE o.broker_id=%s
+            WHERE o.broker_account_id=%s
             GROUP BY o.instrument_id
         """
         with self.db.cursor() as cur:
-            cur.execute(sql, (broker_id,))
+            cur.execute(sql, (broker_account_id,))
             return cur.fetchall()
 
     def fetch_latest_price(self, instrument_id):
@@ -79,21 +79,21 @@ class PortfolioSnapshotUpdater:
             row = cur.fetchone()
             return Decimal(str(row["price"])) if row and row["price"] is not None else None
 
-    def fetch_dividends(self, broker_id, today):
+    def fetch_dividends(self, broker_account_id, today):
         sql = """
             SELECT COALESCE(SUM(amount),0) AS dividends
             FROM dividend
-            WHERE broker_id=%s AND payment_date<=%s
+            WHERE broker_account_id=%s AND payment_date<=%s
         """
         with self.db.cursor() as cur:
-            cur.execute(sql, (broker_id, today))
+            cur.execute(sql, (broker_account_id, today))
             row = cur.fetchone()
             return Decimal(row["dividends"]) if row else Decimal("0.0")
 
-    def upsert_snapshot(self, broker_id, today, snapshot):
+    def upsert_snapshot(self, broker_account_id, today, snapshot):
         sql = """
             INSERT INTO portfolio_snapshot
-            (broker_id, date, total_value, invested_amount, unrealized_pl, realized_pl, dividends_received, cash_balance)
+            (broker_account_id, date, total_value, invested_amount, unrealized_pl, realized_pl, dividends_received, cash_balance)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
             ON DUPLICATE KEY UPDATE
                 total_value=VALUES(total_value),
@@ -103,7 +103,7 @@ class PortfolioSnapshotUpdater:
                 cash_balance=VALUES(cash_balance)
         """
         params = (
-            broker_id, today,
+            broker_account_id, today,
             snapshot["total_value"], snapshot["invested_amount"], snapshot["unrealized_pl"],
             Decimal("0.0"), snapshot["dividends_received"], snapshot["cash_balance"]
         )
@@ -124,9 +124,9 @@ class PortfolioSnapshotUpdater:
             return
 
         for broker in brokers:
-            broker_id = broker["id"]
+            broker_account_id = broker["id"]
             broker_name = broker["name"]
-            instruments = self.fetch_instruments(broker_id)
+            instruments = self.fetch_instruments(broker_account_id)
 
             total_value = Decimal("0.0")
             total_invested = Decimal("0.0")
@@ -149,7 +149,7 @@ class PortfolioSnapshotUpdater:
                 else:
                     self.logger.warning(f"No market price for instrument {instr['symbol']}")
 
-            dividends_received = self.fetch_dividends(broker_id, today)
+            dividends_received = self.fetch_dividends(broker_account_id, today)
 
             # cash_balance will be updated via recalc_cash_balances BEFORE snapshot
             cash_balance = Decimal("0.0")
@@ -162,8 +162,8 @@ class PortfolioSnapshotUpdater:
                 "cash_balance": cash_balance,
             }
 
-            self.upsert_snapshot(broker_id, today, snapshot)
-            self.logger.info(f"Portfolio snapshot updated for '{broker_name}' ({broker_id})")
+            self.upsert_snapshot(broker_account_id, today, snapshot)
+            self.logger.info(f"Portfolio snapshot updated for '{broker_name}' ({broker_account_id})")
 
         self.logger.info("=== Portfolio Snapshot Update Completed ===")
 

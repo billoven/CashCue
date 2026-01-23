@@ -24,7 +24,7 @@ if ($instrument_id <= 0) {
 }
 
 $order = new OrderTransaction();
-$order->broker_id = 1;
+$order->broker_account_id = 1;
 $order->instrument_id = $instrument_id;
 $order->order_type = strtoupper($data->order_type);
 $order->quantity = (float)$data->quantity;

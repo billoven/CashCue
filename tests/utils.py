@@ -57,12 +57,12 @@ def expect_ok(resp):
 
     return j
 
-def sum_cash_db(cursor, broker_id):
-    cursor.execute("SELECT COALESCE(SUM(amount),0) AS s FROM cash_transaction WHERE broker_account_id = %s", (broker_id,))
+def sum_cash_db(cursor, broker_account_id):
+    cursor.execute("SELECT COALESCE(SUM(amount),0) AS s FROM cash_transaction WHERE broker_account_id = %s", (broker_account_id,))
     return float(cursor.fetchone()["s"] or 0.0)
 
-def cash_account_balance(cursor, broker_id):
-    cursor.execute("SELECT COALESCE(current_balance,0) AS b FROM cash_account WHERE broker_id = %s LIMIT 1", (broker_id,))
+def cash_account_balance(cursor, broker_account_id):
+    cursor.execute("SELECT COALESCE(current_balance,0) AS b FROM cash_account WHERE broker_account_id = %s LIMIT 1", (broker_account_id,))
     row = cursor.fetchone()
     return float(row["b"] or 0.0) if row else 0.0
 

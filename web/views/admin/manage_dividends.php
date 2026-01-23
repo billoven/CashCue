@@ -98,8 +98,8 @@
             <div class="mb-3">
                 <label class="form-label">Broker</label>
                 <select
-                    id="broker_id"
-                    name="broker_id"
+                    id="broker_account_id"
+                    name="broker_account_id"
                     class="form-select"
                     required
                 ></select>

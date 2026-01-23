@@ -111,29 +111,29 @@ def test_broker(db):
         INSERT INTO broker_account (name, account_type, currency, created_at, has_cash_account)
         VALUES (%s, 'PEA', 'EUR', NOW(), 1)
     """, (name,))
-    broker_id = cur.lastrowid
+    broker_account_id = cur.lastrowid
 
     # Create associated cash account
     cur.execute("""
-        INSERT INTO cash_account (broker_id, name, initial_balance, current_balance, created_at)
+        INSERT INTO cash_account (broker_account_id, name, initial_balance, current_balance, created_at)
         VALUES (%s, %s, 0.00, 0.00, NOW())
-    """, (broker_id, f"Cash {name}"))
+    """, (broker_account_id, f"Cash {name}"))
 
     db.commit()
 
     yield {
-        "broker_id": broker_id,
+        "broker_account_id": broker_account_id,
         "broker_name": name,
     }
 
     # -------------------------------------------------------------------------
     # CLEANUP
     # -------------------------------------------------------------------------
-    cur.execute("DELETE FROM cash_transaction WHERE broker_account_id = %s", (broker_id,))
-    cur.execute("DELETE FROM order_transaction WHERE broker_id = %s", (broker_id,))
-    cur.execute("DELETE FROM dividend WHERE broker_id = %s", (broker_id,))
-    cur.execute("DELETE FROM cash_account WHERE broker_id = %s", (broker_id,))
-    cur.execute("DELETE FROM broker_account WHERE id = %s", (broker_id,))
+    cur.execute("DELETE FROM cash_transaction WHERE broker_account_id = %s", (broker_account_id,))
+    cur.execute("DELETE FROM order_transaction WHERE broker_account_id = %s", (broker_account_id,))
+    cur.execute("DELETE FROM dividend WHERE broker_account_id = %s", (broker_account_id,))
+    cur.execute("DELETE FROM cash_account WHERE broker_account_id = %s", (broker_account_id,))
+    cur.execute("DELETE FROM broker_account WHERE id = %s", (broker_account_id,))
 
     db.commit()
     cur.close()

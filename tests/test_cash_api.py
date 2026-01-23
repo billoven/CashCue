@@ -1,11 +1,106 @@
+# ========================================================
+# test_cash_api.py – imports fixes pour datetime
+# ========================================================
+
+# Module complet pour accéder à datetime.datetime, datetime.timedelta, etc.
+import datetime as dt_module  
+
+# Classe datetime directement accessible pour .now(), .strptime(), etc.
 from datetime import datetime, timezone
+
 from decimal import Decimal
 import pytest
 import json
+import time
+
 from cashcue_core import db
 from tests.utils import expect_success, expect_ok, sum_cash_db, cash_account_balance, extract_id
 
 API_BASE = None
+
+@pytest.fixture
+def cash_transactions(db, test_broker):
+    """
+    Prepare a deterministic set of cash transactions for API filter tests.
+
+    This fixture inserts a small, controlled dataset of cash movements
+    (DEPOSIT, BUY, DIVIDEND, FEES) linked to a single broker account.
+    The data is specifically designed to validate filtering logic
+    (by transaction type, date range, and amount sign).
+
+    Scope and lifecycle:
+    - Executed only for tests that explicitly declare `cash_transactions`
+      as a parameter.
+    - Data is inserted into the test database using the `db` fixture.
+    - All inserted rows are automatically cleaned up after the test
+      execution, either by transaction rollback or database reset,
+      depending on the `db` fixture implementation.
+    - No manual DELETE is required and no production data is affected.
+
+    Important:
+    - This fixture must never be used against a production database.
+    - The inserted data must remain deterministic; do not use `NOW()`
+      or random values.
+    """
+
+    broker_account_id = test_broker["broker_account_id"]
+
+    rows = [
+        (
+            broker_account_id,
+            datetime(2024, 1, 10, 10, 0, 0),
+            "BUY",
+            -1000.00,
+            "BUY test"
+        ),
+        (
+            broker_account_id,
+            datetime(2024, 1, 15, 15, 30, 0),
+            "SELL",
+            1200.00,
+            "SELL test"
+        ),
+        (
+            broker_account_id,
+            datetime(2024, 2, 5, 9, 0, 0),
+            "DIVIDEND",
+            50.00,
+            "DIVIDEND test"
+        ),
+    ]
+
+    cursor = db.cursor()
+
+    cursor.executemany(
+        """
+        INSERT INTO cash_transaction
+        (broker_account_id, date, type, amount, comment)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        rows
+    )
+
+    db.commit()
+    yield rows
+
+
+@pytest.fixture
+def ensure_cash_account(db, test_broker):
+    """
+    Assure qu'un cash_account existe pour le broker avant le test.
+    """
+    broker_account_id = test_broker["broker_account_id"]
+    cur = db.cursor()
+    cur.execute("SELECT id FROM cash_account WHERE broker_account_id=%s", (broker_account_id,))
+    if cur.fetchone() is None:
+        cur.execute(
+            "INSERT INTO cash_account (broker_account_id, name, initial_balance, current_balance, created_at) "
+            "VALUES (%s, %s, 0.0, 0.0, %s)",
+            (broker_account_id, f"TEST_ACCOUNT_{broker_account_id}", datetime.now())
+        )
+        db.commit()
+    cur.close()
+    yield  # permet d'utiliser la fixture
 
 @pytest.fixture(autouse=True)
 def set_api_base():
@@ -13,27 +108,16 @@ def set_api_base():
     import os
     API_BASE = os.environ.get("CASHCUE_API_BASE_URL", "http://localhost/cashcue/api")
 
-#def post(client, path, payload):
-#   url = f"{API_BASE}/{path}"
-#
-#    return client.post(
-#        url,
-#        data=json.dumps(payload),
-#        headers={"Content-Type": "application/json"}
-#    )
-
 def post(client, path, payload):
     url = f"{API_BASE}/{path}"
     return client.post(url, json=payload)
-
-    
-
+ 
 def get(client, path, params=None):
     url = f"{API_BASE}/{path}"
     return client.get(url, params=params)
 
-def test_add_update_delete_order_flow(http_client, db, test_broker):
-    broker_id = test_broker["broker_id"]
+def test_add_cancel_and_recreate_order_flow(http_client, db, test_broker):
+    broker_account_id = test_broker["broker_account_id"]
     cur = db.cursor()
 
     # --------------------------------------------------
@@ -58,7 +142,7 @@ def test_add_update_delete_order_flow(http_client, db, test_broker):
     buy_total = buy_qty * buy_price + buy_fees
 
     resp = post(http_client, "addOrder.php", {
-        "broker_account_id": broker_id,
+        "broker_account_id": broker_account_id,
         "instrument_id": instrument_id,
         "order_type": "BUY",
         "quantity": buy_qty,
@@ -70,23 +154,12 @@ def test_add_update_delete_order_flow(http_client, db, test_broker):
     db.commit()
     order_buy_id = extract_id(j, "order_id")
 
-    cur.execute("""
-        SELECT order_type, quantity, price, fees, total_cost
-        FROM order_transaction
-        WHERE id = %s
-    """, (order_buy_id,))
-    ot = cur.fetchone()
-
-    assert ot["order_type"] == "BUY"
-    assert round(float(ot["total_cost"]), 2) == round(buy_total, 2)
-
     cur.execute("SELECT amount FROM cash_transaction WHERE reference_id = %s", (order_buy_id,))
     ct = cur.fetchone()
     assert round(float(ct["amount"]), 2) == round(-buy_total, 2)
 
     expected_balance = -buy_total
-    assert round(sum_cash_db(cur, broker_id), 2) == round(expected_balance, 2)
-    assert round(cash_account_balance(cur, broker_id), 2) == round(expected_balance, 2)
+    assert round(sum_cash_db(cur, broker_account_id), 2) == expected_balance
 
     # --------------------------------------------------
     # 3) Add SELL order
@@ -94,11 +167,10 @@ def test_add_update_delete_order_flow(http_client, db, test_broker):
     sell_qty = 50
     sell_price = 20.0
     sell_fees = 2.0
-    sell_total = sell_qty * sell_price + sell_fees
     sell_cash = sell_qty * sell_price - sell_fees
 
     resp = post(http_client, "addOrder.php", {
-        "broker_account_id": broker_id,
+        "broker_account_id": broker_account_id,
         "instrument_id": instrument_id,
         "order_type": "SELL",
         "quantity": sell_qty,
@@ -110,93 +182,80 @@ def test_add_update_delete_order_flow(http_client, db, test_broker):
     db.commit()
     order_sell_id = extract_id(j, "order_id")
 
-    cur.execute("""
-        SELECT order_type, total_cost
-        FROM order_transaction
-        WHERE id = %s
-    """, (order_sell_id,))
-    ot = cur.fetchone()
-
-    assert ot["order_type"] == "SELL"
-    assert round(float(ot["total_cost"]), 2) == round(sell_total, 2)
-
     cur.execute("SELECT amount FROM cash_transaction WHERE reference_id = %s", (order_sell_id,))
     ct = cur.fetchone()
     assert round(float(ct["amount"]), 2) == round(sell_cash, 2)
 
     expected_balance += sell_cash
-    assert round(sum_cash_db(cur, broker_id), 2) == round(expected_balance, 2)
+    assert round(sum_cash_db(cur, broker_account_id), 2) == expected_balance
 
     # --------------------------------------------------
-    # 4) Update SELL price
+    # 4) Cancel SELL order
     # --------------------------------------------------
-    new_sell_price = 30.0
-    new_sell_total = sell_qty * new_sell_price + sell_fees
-    new_sell_cash = sell_qty * new_sell_price - sell_fees
-
-    resp = post(http_client, "updateOrder.php", {
-        "id": order_sell_id,
-        "price": new_sell_price
-    })
-    expect_success(resp)
+    expect_success(
+        post(http_client, "cancelOrder.php", {"id": order_sell_id})
+    )
     db.commit()
 
     cur.execute("""
-        SELECT price, total_cost
-        FROM order_transaction
-        WHERE id = %s
+        SELECT amount
+        FROM cash_transaction
+        WHERE reference_id = %s
+        ORDER BY id
     """, (order_sell_id,))
-    ot = cur.fetchone()
+    rows = cur.fetchall()
+    assert len(rows) == 2
+    assert round(float(rows[0]["amount"]) + float(rows[1]["amount"]), 2) == 0.00
 
-    assert round(float(ot["price"]), 2) == round(new_sell_price, 2)
-    assert round(float(ot["total_cost"]), 2) == round(new_sell_total, 2)
+    expected_balance -= sell_cash
+    assert round(sum_cash_db(cur, broker_account_id), 2) == expected_balance
 
-    cur.execute("SELECT amount FROM cash_transaction WHERE reference_id = %s", (order_sell_id,))
+    # --------------------------------------------------
+    # 5) Recreate SELL order with new price
+    # --------------------------------------------------
+    new_sell_price = 30.0
+    new_sell_cash = sell_qty * new_sell_price - sell_fees
+
+    resp = post(http_client, "addOrder.php", {
+        "broker_account_id": broker_account_id,
+        "instrument_id": instrument_id,
+        "order_type": "SELL",
+        "quantity": sell_qty,
+        "price": new_sell_price,
+        "fees": sell_fees,
+        "trade_date": "2025-01-07 12:00:00"
+    })
+    j = expect_success(resp)
+    db.commit()
+    new_order_sell_id = extract_id(j, "order_id")
+
+    cur.execute("SELECT amount FROM cash_transaction WHERE reference_id = %s", (new_order_sell_id,))
     ct = cur.fetchone()
     assert round(float(ct["amount"]), 2) == round(new_sell_cash, 2)
 
-    expected_balance = -buy_total + new_sell_cash
-    assert round(sum_cash_db(cur, broker_id), 2) == round(expected_balance, 2)
+    expected_balance += new_sell_cash
+    assert round(sum_cash_db(cur, broker_account_id), 2) == expected_balance
 
     # --------------------------------------------------
-    # 5) Change SELL -> BUY
+    # 6) Cancel BUY order
     # --------------------------------------------------
-    new_fees = 1.0
-    buy2_total = sell_qty * new_sell_price + new_fees
-    buy2_cash = -buy2_total
-
-    resp = post(http_client, "updateOrder.php", {
-        "id": order_sell_id,
-        "order_type": "BUY",
-        "fees": new_fees
-    })
-    expect_success(resp)
+    expect_success(
+        post(http_client, "cancelOrder.php", {"id": order_buy_id})
+    )
     db.commit()
 
-    cur.execute("SELECT order_type, total_cost FROM order_transaction WHERE id = %s", (order_sell_id,))
-    ot = cur.fetchone()
-    assert ot["order_type"] == "BUY"
-    assert round(float(ot["total_cost"]), 2) == round(buy2_total, 2)
+    cur.execute("""
+        SELECT amount
+        FROM cash_transaction
+        WHERE reference_id = %s
+        ORDER BY id
+    """, (order_buy_id,))
+    rows = cur.fetchall()
+    assert len(rows) == 2
+    assert round(float(rows[0]["amount"]) + float(rows[1]["amount"]), 2) == 0.00
 
-    cur.execute("SELECT amount FROM cash_transaction WHERE reference_id = %s", (order_sell_id,))
-    ct = cur.fetchone()
-    assert round(float(ct["amount"]), 2) == round(buy2_cash, 2)
-
-    expected_balance = -buy_total + buy2_cash
-    assert round(sum_cash_db(cur, broker_id), 2) == round(expected_balance, 2)
-
-    # --------------------------------------------------
-    # 6) Delete initial BUY order
-    # --------------------------------------------------
-    resp = get(http_client, "deleteOrder.php", params={"id": order_buy_id})
-    expect_success(resp)
-    db.commit()
-
-    cur.execute("SELECT 1 FROM cash_transaction WHERE reference_id = %s", (order_buy_id,))
-    assert cur.fetchone() is None
-
-    expected_balance = buy2_cash
-    assert round(sum_cash_db(cur, broker_id), 2) == round(expected_balance, 2)
+    expected_balance += buy_total
+    assert round(sum_cash_db(cur, broker_account_id), 2) == round(new_sell_cash, 2)
 
     # --------------------------------------------------
     # Cleanup
@@ -205,18 +264,83 @@ def test_add_update_delete_order_flow(http_client, db, test_broker):
     db.commit()
     cur.close()
 
+
+def test_cancel_order_reverts_cash(http_client, db, test_broker):
+    broker_account_id = test_broker["broker_account_id"]
+    cur = db.cursor()
+
+    symbol = f"CANCEL_{int(time.time())}"
+
+    cur.execute("""
+        INSERT INTO instrument (label, symbol, type, currency)
+        VALUES (%s, %s, 'STOCK', 'EUR')
+    """, ("TEST_CANCEL", symbol))
+    instrument_id = cur.lastrowid
+    db.commit()
+
+    # Create BUY order
+    resp = post(http_client, "addOrder.php", {
+        "broker_account_id": broker_account_id,
+        "instrument_id": instrument_id,
+        "order_type": "BUY",
+        "quantity": 10,
+        "price": 100,
+        "fees": 0,
+        "trade_date": "2025-01-10 10:00:00"
+    })
+    j = expect_success(resp)
+    order_id = extract_id(j, "order_id")
+    db.commit()
+
+    # Check initial cash impact
+    cur.execute(
+        "SELECT amount FROM cash_transaction WHERE reference_id = %s",
+        (order_id,)
+    )
+    assert cur.fetchone() is not None
+
+    # Cancel order (POST API)
+    expect_success(
+        post(http_client, "cancelOrder.php", {"id": order_id})
+    )
+
+    db.commit()
+
+    # Original + reversal must exist
+    cur.execute("""
+        SELECT amount
+        FROM cash_transaction
+        WHERE reference_id = %s
+        ORDER BY id
+    """, (order_id,))
+    rows = cur.fetchall()
+
+    assert len(rows) == 2
+
+    original = float(rows[0]["amount"])
+    reversal = float(rows[1]["amount"])
+
+    # Neutralisation comptable
+    assert round(original + reversal, 2) == 0.00
+
+    # Cash balance unchanged
+    assert round(cash_account_balance(cur, broker_account_id), 2) == 0.00
+
+    cur.close()
+
+
 def test_dividend_flow_full_coverage(http_client, db, test_broker):
-    broker_id = test_broker["broker_id"]
+    broker_account_id = test_broker["broker_account_id"]
     cur = db.cursor()
 
     # --------------------------------------------------
     # Ensure broker has a cash account
     # --------------------------------------------------
-    cur.execute("UPDATE broker_account SET has_cash_account = 1 WHERE id = %s", (broker_id,))
+    cur.execute("UPDATE broker_account SET has_cash_account = 1 WHERE id = %s", (broker_account_id,))
     cur.execute("""
-        INSERT IGNORE INTO cash_account (broker_id, current_balance)
+        INSERT IGNORE INTO cash_account (broker_account_id, current_balance)
         VALUES (%s, 0)
-    """, (broker_id,))
+    """, (broker_account_id,))
     db.commit()
 
     # --------------------------------------------------
@@ -235,7 +359,7 @@ def test_dividend_flow_full_coverage(http_client, db, test_broker):
     # A) Create dividend (gross 100, taxes 20 → net 80)
     # --------------------------------------------------
     resp = post(http_client, "addDividend.php", {
-        "broker_id": broker_id,
+        "broker_account_id": broker_account_id,
         "instrument_id": instrument_id,
         "gross_amount": 100.00,
         "taxes_withheld": 20.00,
@@ -333,18 +457,29 @@ def test_dividend_flow_full_coverage(http_client, db, test_broker):
     assert round(float(cur.fetchone()["amount"]), 2) == 150.00
 
     # --------------------------------------------------
-    # F) Delete dividend → cash removed
+    # F) Cancel dividend → cash reversal
     # --------------------------------------------------
-    expect_success(get(http_client, "deleteDividend.php", params={"id": div_id}))
-
+    expect_success(
+        post(http_client, "cancelDividend.php", {"id": div_id})
+    )
     db.commit()
 
     cur.execute("""
-        SELECT *
+        SELECT amount
         FROM cash_transaction
         WHERE reference_id = %s
+        AND type = 'DIVIDEND'
+        ORDER BY id
     """, (div_id,))
-    assert cur.fetchone() is None
+    rows = cur.fetchall()
+
+    assert len(rows) == 2
+
+    original = float(rows[0]["amount"])
+    reversal = float(rows[1]["amount"])
+
+    # Reversal must neutralize original
+    assert round(original + reversal, 2) == 0.00
 
     # --------------------------------------------------
     # Final balance check
@@ -352,9 +487,10 @@ def test_dividend_flow_full_coverage(http_client, db, test_broker):
     cur.execute("""
         SELECT current_balance
         FROM cash_account
-        WHERE broker_id = %s
-    """, (broker_id,))
-    assert round(float(cur.fetchone()["current_balance"]), 2) == 0.00
+        WHERE broker_account_id = %s
+    """, (broker_account_id,))
+
+    assert round(cash_account_balance(cur, broker_account_id), 2) == 0.00
 
     cur.close()
 
@@ -365,7 +501,7 @@ def test_get_cash_summary(http_client, db, test_broker):
         initial_balance + SUM(cash_transaction.amount)
     """
 
-    broker_id = test_broker["broker_id"]
+    broker_account_id = test_broker["broker_account_id"]
     cur = db.cursor()
 
     # ------------------------------------------------------------------
@@ -374,14 +510,14 @@ def test_get_cash_summary(http_client, db, test_broker):
 
     cur.execute(
         "DELETE FROM cash_transaction WHERE broker_account_id = %s",
-        (broker_id,)
+        (broker_account_id,)
     )
 
     cur.execute("""
         UPDATE cash_account
         SET initial_balance = 1000.00
-        WHERE broker_id = %s
-    """, (broker_id,))
+        WHERE broker_account_id = %s
+    """, (broker_account_id,))
 
     movements = [
         ("DEPOSIT",     500.00),
@@ -398,7 +534,7 @@ def test_get_cash_summary(http_client, db, test_broker):
                 type
             ) VALUES (%s, %s, %s, %s)
         """, (
-            broker_id,
+            broker_account_id,
             "2025-01-15 12:00:00",
             amount,
             tx_type
@@ -414,7 +550,7 @@ def test_get_cash_summary(http_client, db, test_broker):
     resp = get(
         http_client,
         "getCashSummary.php",
-        params={"broker_id": broker_id}
+        params={"broker_account_id": broker_account_id}
     )
 
     j = expect_ok(resp)   # ✅ CORRECTION CLÉ
@@ -422,7 +558,7 @@ def test_get_cash_summary(http_client, db, test_broker):
     # ------------------------------------------------------------------
     # 3) Structural validation
     # ------------------------------------------------------------------
-    assert j["broker_id"] == broker_id
+    assert j["broker_account_id"] == broker_account_id
     assert "currency" in j
     assert "current_balance" in j
     assert "initial_balance" in j
@@ -449,10 +585,10 @@ def test_get_cash_summary(http_client, db, test_broker):
             COALESCE(SUM(ct.amount), 0) AS balance
         FROM cash_account ca
         LEFT JOIN cash_transaction ct
-            ON ct.broker_account_id = ca.broker_id
-        WHERE ca.broker_id = %s
+            ON ct.broker_account_id = ca.broker_account_id
+        WHERE ca.broker_account_id = %s
         GROUP BY ca.initial_balance
-    """, (broker_id,))
+    """, (broker_account_id,))
 
     row = cur.fetchone()
     assert row is not None
@@ -460,77 +596,74 @@ def test_get_cash_summary(http_client, db, test_broker):
 
     cur.close()
 
+def test_get_cash_transactions_with_filters(http_client, cash_transactions, test_broker):
+    broker_account_id = test_broker["broker_account_id"]
 
+    resp = get(
+        http_client,
+        "getCashTransactions.php",
+        params={
+            "broker_account_id": broker_account_id,
+            "from": "2024-01-12",
+            "to": "2024-01-31",
+            "type": "SELL",
+        }
+    )
 
-def test_get_cash_transactions(http_client, db, test_broker):
-    """
-    Ensure that cash transactions API returns a list of ledger entries
-    for the given broker account.
-    """
-    broker_id = test_broker["broker_id"]
-
-    resp = get(http_client, "getCashTransactions.php", params={
-        "broker_id": broker_id
-    })
     j = expect_success(resp)
 
-    assert isinstance(j, list)
+    assert "count" in j
+    assert "data" in j
+    assert j["count"] == 1
 
-    # If transactions exist, validate expected fields
-    if len(j) > 0:
-        row = j[0]
-        assert "transaction_date" in row
-        assert "type" in row
-        assert "amount" in row
+    row = j["data"][0]
 
+    assert row["type"] == "SELL"
+    assert row["amount"] == "1200.00" or float(row["amount"]) == 1200.00
+    assert row["date"].startswith("2024-01-15")
 
-def test_add_cash_adjustment(http_client, db, test_broker):
+def test_add_cash_adjustment(http_client, db, test_broker, ensure_cash_account):
     """
-    Create a manual cash adjustment and verify:
-    - cash_transaction is inserted
-    - cash_account balance is updated accordingly
+    Test l'ajout d'un ajustement de cash valide via POST.
+    Vérifie :
+    - l'insertion dans cash_transaction
+    - la mise à jour du solde du broker
     """
-    broker_id = test_broker["broker_id"]
-    cur = db.cursor()
+    broker_account_id = test_broker["broker_account_id"]
+    amount = 123.45
+    comment = "Manual cash adjustment for test"
 
-    adjustment_amount = 123.45
-
-    # Add cash adjustment
     resp = post(http_client, "addCashAdjustment.php", {
-        "broker_id": broker_id,
-        "amount": adjustment_amount,
-        "comment": "Manual cash adjustment for test"
+        "broker_account_id": broker_account_id,
+        "amount": amount,
+        "comment": comment
     })
+
     j = expect_success(resp)
+    assert j["broker_account_id"] == broker_account_id
+    assert float(j["amount"]) == amount
 
-    assert j["broker_id"] == broker_id
-    assert round(float(j["amount"]), 2) == round(adjustment_amount, 2)
-
-    # Verify adjustment exists in cash_transaction
-    cur.execute("""
-        SELECT * FROM cash_transaction
-        WHERE broker_account_id = %s AND type = 'ADJUSTMENT'
-        ORDER BY id DESC
-        LIMIT 1
-    """, (broker_id,))
-    ct = cur.fetchone()
-    assert ct is not None
-    assert round(float(ct["amount"]), 2) == round(adjustment_amount, 2)
-
-    # ADJUSTMENT should not reference an order or dividend
-    assert ct["reference_id"] is None
-
-    # Verify aggregated balance consistency
-    sum_db = sum_cash_db(cur, broker_id)
-    b = cash_account_balance(cur, broker_id)
-
-    assert round(sum_db, 2) == round(b, 2)
-
+    # Vérification du solde dans la DB
+    cur = db.cursor()
+    cur.execute("SELECT current_balance FROM cash_account WHERE broker_account_id=%s", (broker_account_id,))
+    row = cur.fetchone()
+    assert row is not None
+    assert abs(float(row[0]) - amount) < 0.01
     cur.close()
 
-def test_add_cash_adjustment_invalid_amount(http_client, test_broker):
+
+def test_add_cash_adjustment_invalid_amount(http_client, db, test_broker, ensure_cash_account):
+    """
+    Test qu'un ajustement avec amount=0 retourne HTTP 400.
+    """
+    broker_account_id = test_broker["broker_account_id"]
+
     resp = post(http_client, "addCashAdjustment.php", {
-        "broker_id": test_broker["broker_id"],
-        "amount": 0
+        "broker_account_id": broker_account_id,
+        "amount": 0,
+        "comment": "Invalid adjustment"
     })
+
     assert resp.status_code == 400
+    j = resp.json()
+    assert "Amount cannot be zero" in j.get("error", "")

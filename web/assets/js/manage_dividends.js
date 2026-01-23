@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load dropdowns (brokers & instruments)
     // --------------------------------------------------------
     async function loadDropdowns() {
-        const brokerSelect = document.getElementById('broker_id');
+        const brokerSelect = document.getElementById('broker_account_id');
         const instrumentSelect = document.getElementById('instrument_id');
 
         brokerSelect.innerHTML = '';
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = new URL('/cashcue/api/getDividends.php', window.location.origin);
 
             if (brokerAccountId && brokerAccountId !== "all") {
-                url.searchParams.append('broker_id', brokerAccountId);
+                url.searchParams.append('broker_account_id', brokerAccountId);
             }
 
             const res = await fetch(url);
@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         const payload = {
-            broker_id: form.broker_id.value,
+            broker_account_id: form.broker_account_id.value,
             instrument_id: form.instrument_id.value,
             payment_date: form.payment_date.value,
             gross_amount: parseFloat(form.gross_amount.value) || 0,

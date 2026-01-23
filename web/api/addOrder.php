@@ -58,7 +58,7 @@ try {
     $stmt = $pdo->prepare("
         INSERT INTO order_transaction
         (
-        broker_id,
+        broker_account_id,
         instrument_id,
         order_type,
         quantity,
@@ -142,7 +142,7 @@ try {
             $upd = $pdo->prepare("
                 UPDATE cash_account
                 SET current_balance = :bal, updated_at = NOW()
-                WHERE broker_id = :broker_account_id
+                WHERE broker_account_id = :broker_account_id
             ");
             $upd->execute([
                 ':bal' => $sumRow['sum_amount'],

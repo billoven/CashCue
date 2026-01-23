@@ -6,7 +6,7 @@ class OrderTransaction {
     private $table = 'order_transaction';
 
     public $id;
-    public $broker_id;
+    public $broker_account_id;
     public $instrument_id;
     public $order_type;
     public $quantity;
@@ -19,10 +19,10 @@ class OrderTransaction {
     }
 
     public function create() {
-        $sql = "INSERT INTO {$this->table} (broker_id, instrument_id, order_type, quantity, price, trade_date)
-                VALUES (:broker_id, :instrument_id, :order_type, :quantity, :price, :trade_date)";
+        $sql = "INSERT INTO {$this->table} (broker_account_id, instrument_id, order_type, quantity, price, trade_date)
+                VALUES (:broker_account_id, :instrument_id, :order_type, :quantity, :price, :trade_date)";
         $stmt = $this->conn->prepare($sql);
-        $stmt->bindParam(':broker_id', $this->broker_id);
+        $stmt->bindParam(':broker_account_id', $this->broker_account_id);
         $stmt->bindParam(':instrument_id', $this->instrument_id);
         $stmt->bindParam(':order_type', $this->order_type);
         $stmt->bindParam(':quantity', $this->quantity);

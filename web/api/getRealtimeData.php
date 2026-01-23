@@ -45,7 +45,7 @@ try {
             WHERE i.id IN (
                 SELECT DISTINCT instrument_id
                 FROM order_transaction
-                WHERE broker_id = :broker_account_id
+                WHERE broker_account_id = :broker_account_id
             )
         ";
     }

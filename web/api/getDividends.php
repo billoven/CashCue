@@ -8,7 +8,7 @@
  *
  * Supports filters:
  * - id
- * - broker_id
+ * - broker_account_id
  * - instrument_id
  * - date range
  */
@@ -24,7 +24,7 @@ try {
     $sql = "
         SELECT
             d.id,
-            d.broker_id,
+            d.broker_account_id,
             b.name AS broker_name,
             d.instrument_id,
             i.symbol,
@@ -38,7 +38,7 @@ try {
             d.cancelled_at,
             d.created_at
         FROM dividend d
-        LEFT JOIN broker_account b ON d.broker_id = b.id
+        LEFT JOIN broker_account b ON d.broker_account_id = b.id
         LEFT JOIN instrument i      ON d.instrument_id = i.id
         WHERE 1 = 1
     ";
@@ -55,9 +55,9 @@ try {
         $params[':id'] = (int) $_GET['id'];
     }
 
-    if (!empty($_GET['broker_id'])) {
-        $sql .= " AND d.broker_id = :broker_id";
-        $params[':broker_id'] = (int) $_GET['broker_id'];
+    if (!empty($_GET['broker_account_id'])) {
+        $sql .= " AND d.broker_account_id = :broker_account_id";
+        $params[':broker_account_id'] = (int) $_GET['broker_account_id'];
     }
 
     if (!empty($_GET['instrument_id'])) {

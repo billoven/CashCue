@@ -18,7 +18,7 @@ try {
 
     // 1️⃣ Récupérer le dividend actif
     $sel = $pdo->prepare("
-        SELECT id, broker_id, amount, status 
+        SELECT id, broker_account_id, amount, status 
         FROM dividend 
         WHERE id = :id 
         LIMIT 1
@@ -28,8 +28,20 @@ try {
     if (!$dividend) throw new Exception('Dividend not found');
     if ($dividend['status'] !== 'ACTIVE') throw new Exception('Dividend is already cancelled');
 
-    $broker_id = (int)$dividend['broker_id'];
-    $amount = (float)$dividend['amount'];
+    $broker_account_id = (int)$dividend['broker_account_id'];
+    
+    // Récupérer le montant du dernier cash transaction lié au dividend
+        $cur = $pdo->prepare("
+        SELECT amount
+        FROM cash_transaction
+        WHERE reference_id = :div_id
+        AND type = 'DIVIDEND'
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $cur->execute([':div_id' => $div_id]);
+    $latest = $cur->fetch(PDO::FETCH_ASSOC);
+    $amount = (float)$latest['amount'];
 
     // 2️⃣ Marquer le dividend comme CANCELLED
     $updDividend = $pdo->prepare("
@@ -43,10 +55,10 @@ try {
     $insCash = $pdo->prepare("
         INSERT INTO cash_transaction
         (broker_account_id, date, amount, type, reference_id, comment)
-        VALUES (:broker_id, NOW(), :amount, 'DIVIDEND', :ref, :comment)
+        VALUES (:broker_account_id, NOW(), :amount, 'DIVIDEND', :ref, :comment)
     ");
     $insCash->execute([
-        ':broker_id' => $broker_id,
+        ':broker_account_id' => $broker_account_id,
         ':amount' => -$amount, // Reversal
         ':ref' => $div_id,
         ':comment' => "Reversal of dividend #$div_id"
@@ -56,19 +68,19 @@ try {
     $sumStmt = $pdo->prepare("
         SELECT COALESCE(SUM(amount),0) AS sum_amount 
         FROM cash_transaction 
-        WHERE broker_account_id = :broker_id
+        WHERE broker_account_id = :broker_account_id
     ");
-    $sumStmt->execute([':broker_id' => $broker_id]);
+    $sumStmt->execute([':broker_account_id' => $broker_account_id]);
     $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
 
     $updBalance = $pdo->prepare("
         UPDATE cash_account 
         SET current_balance = :bal, updated_at = NOW() 
-        WHERE broker_id = :broker_id
+        WHERE broker_account_id = :broker_account_id
     ");
     $updBalance->execute([
         ':bal' => $sumRow['sum_amount'],
-        ':broker_id' => $broker_id
+        ':broker_account_id' => $broker_account_id
     ]);
 
     $pdo->commit();

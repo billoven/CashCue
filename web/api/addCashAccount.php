@@ -6,7 +6,7 @@ header('Content-Type: application/json');
 try {
     $data = json_decode(file_get_contents('php://input'), true);
 
-    if (!isset($data['broker_id']) || !isset($data['name'])) {
+    if (!isset($data['broker_account_id']) || !isset($data['name'])) {
         throw new Exception("Missing required fields");
     }
 
@@ -14,11 +14,11 @@ try {
     $pdo = $db->getConnection();
 
     $stmt = $pdo->prepare("
-        INSERT INTO cash_account (broker_id, name, initial_balance, current_balance, created_at)
-        VALUES (:broker_id, :name, :initial_balance, :initial_balance, NOW())
+        INSERT INTO cash_account (broker_account_id, name, initial_balance, current_balance, created_at)
+        VALUES (:broker_account_id, :name, :initial_balance, :initial_balance, NOW())
     ");
     $stmt->execute([
-        ":broker_id" => $data["broker_id"],
+        ":broker_account_id" => $data["broker_account_id"],
         ":name" => $data["name"],
         ":initial_balance" => $data["initial_balance"] ?? 0.00
     ]);

@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadCashSummary(brokerAccountId) {
     const res = await fetch(
-      `/cashcue/api/getCashSummary.php?broker_id=${brokerAccountId}`
+      `/cashcue/api/getCashSummary.php?broker_account_id=${brokerAccountId}`
     );
 
     if (!res.ok) {

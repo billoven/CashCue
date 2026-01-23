@@ -24,12 +24,12 @@ try {
     // Filter for portfolio_snapshot
     $psFilter = $isAll 
         ? ""
-        : "AND broker_id = :brokerId";
+        : "AND broker_account_id = :brokerId";
 
     // Filter for order_transaction
     $otFilter = $isAll
         ? ""
-        : "WHERE broker_id = :brokerId";
+        : "WHERE broker_account_id = :brokerId";
 
     // -----------------------------
     // 3) SQL query with account filter

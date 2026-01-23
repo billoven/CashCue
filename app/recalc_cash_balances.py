@@ -56,7 +56,7 @@ class CashBalanceRecalculator:
             cur.execute(sql)
             return cur.fetchall()
 
-    def fetch_cash_transactions(self, broker_id):
+    def fetch_cash_transactions(self, broker_account_id):
         sql = """
             SELECT amount, type
             FROM cash_transaction
@@ -64,7 +64,7 @@ class CashBalanceRecalculator:
             ORDER BY date ASC
         """
         with self.db.cursor() as cur:
-            cur.execute(sql, (broker_id,))
+            cur.execute(sql, (broker_account_id,))
             return cur.fetchall()
 
     def fetch_latest_snapshot_date(self):
@@ -91,13 +91,13 @@ class CashBalanceRecalculator:
     #  UPDATE METHODS
     # ---------------------------------------------------------
 
-    def update_cash_account(self, broker_id, cash_balance):
+    def update_cash_account(self, broker_account_id, cash_balance):
         sql = """
             UPDATE cash_account
             SET current_balance = %s
-            WHERE broker_id = %s
+            WHERE broker_account_id = %s
         """
-        params = (cash_balance, broker_id)
+        params = (cash_balance, broker_account_id)
 
         if self.dry_run:
             self.logger.info(f"[DRY-RUN] SQL: {sql} | Params: {params}")
@@ -106,13 +106,13 @@ class CashBalanceRecalculator:
         with self.db.cursor() as cur:
             cur.execute(sql, params)
 
-    def update_snapshot_cash(self, broker_id, latest_date, cash_balance):
+    def update_snapshot_cash(self, broker_account_id, latest_date, cash_balance):
         sql = """
             UPDATE portfolio_snapshot
             SET cash_balance = %s
-            WHERE broker_id = %s AND date = %s
+            WHERE broker_account_id = %s AND date = %s
         """
-        params = (cash_balance, broker_id, latest_date)
+        params = (cash_balance, broker_account_id, latest_date)
 
         if self.dry_run:
             self.logger.info(f"[DRY-RUN] SQL: {sql} | Params: {params}")
@@ -139,11 +139,11 @@ class CashBalanceRecalculator:
             return
 
         for broker in brokers:
-            broker_id = broker["id"]
+            broker_account_id = broker["id"]
             broker_name = broker["name"]
-            self.logger.info(f"Processing broker_account '{broker_name}' (ID={broker_id})")
+            self.logger.info(f"Processing broker_account '{broker_name}' (ID={broker_account_id})")
 
-            rows = self.fetch_cash_transactions(broker_id)
+            rows = self.fetch_cash_transactions(broker_account_id)
 
             cash_balance = Decimal("0.0")
             for row in rows:
@@ -153,8 +153,8 @@ class CashBalanceRecalculator:
 
             self.logger.info(f"Computed cash balance for '{broker_name}': {cash_balance}")
 
-            self.update_cash_account(broker_id, cash_balance)
-            self.update_snapshot_cash(broker_id, latest_date, cash_balance)
+            self.update_cash_account(broker_account_id, cash_balance)
+            self.update_snapshot_cash(broker_account_id, latest_date, cash_balance)
 
             self.logger.info(f"Updated cash_account & portfolio_snapshot cash for '{broker_name}'")
 

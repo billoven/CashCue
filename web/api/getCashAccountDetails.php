@@ -12,7 +12,7 @@ try {
     $stmt = $pdo->prepare("
         SELECT ca.*, b.name AS broker_name
         FROM cash_account ca
-        LEFT JOIN broker_account b ON ca.broker_id = b.id
+        LEFT JOIN broker_account b ON ca.broker_account_id = b.id
         WHERE ca.id = :id
     ");
     $stmt->execute([':id' => $id]);

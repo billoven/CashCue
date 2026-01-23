@@ -35,12 +35,12 @@ try {
             CONCAT(b.name, '_', b.account_type) AS broker_full_name
         FROM order_transaction ot
         JOIN instrument i ON i.id = ot.instrument_id
-        JOIN broker_account b ON ot.broker_id = b.id
+        JOIN broker_account b ON ot.broker_account_id = b.id
     ";
 
     // Add broker filter if needed
     if ($broker_account_id !== null) {
-        $sql .= " WHERE ot.broker_id = :broker_id";
+        $sql .= " WHERE ot.broker_account_id = :broker_account_id";
     }
 
     $sql .= " ORDER BY ot.trade_date DESC, ot.id DESC
@@ -49,7 +49,7 @@ try {
     $stmt = $pdo->prepare($sql);
 
     if ($broker_account_id !== null) {
-        $stmt->bindValue(':broker_id', $broker_account_id, PDO::PARAM_INT);
+        $stmt->bindValue(':broker_account_id', $broker_account_id, PDO::PARAM_INT);
     }
     $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);

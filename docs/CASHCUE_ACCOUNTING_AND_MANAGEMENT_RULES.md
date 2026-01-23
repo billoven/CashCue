@@ -85,7 +85,7 @@ Principle:
 
 | Field         | Direct UPDATE Allowed | Impact / Rule                                                |
 | ------------- | --------------------- | ------------------------------------------------------------ |
-| broker_id     | ❌                     | CANCEL order + recreate (cash & position impacted)           |
+| broker_account_id     | ❌                     | CANCEL order + recreate (cash & position impacted)           |
 | instrument_id | ❌                     | CANCEL order + recreate                                      |
 | order_type    | ❌                     | Immutable                                                    |
 | quantity      | ❌                     | CANCEL order + recreate                                      |
@@ -103,7 +103,7 @@ Note: Any cancellation of an order must generate a reversal cash_transaction.
 
 | Field          | Direct UPDATE Allowed | Impact / Rule                              |
 | -------------- | --------------------- | ------------------------------------------ |
-| broker_id      | ❌                     | CANCEL dividend + recreate                 |
+| broker_account_id      | ❌                     | CANCEL dividend + recreate                 |
 | instrument_id  | ❌                     | CANCEL dividend + recreate                 |
 | amount         | ❌                     | CANCEL dividend + recreate (cash impacted) |
 | gross_amount   | ❌                     | CANCEL dividend + recreate                 |

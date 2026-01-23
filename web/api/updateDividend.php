@@ -45,7 +45,7 @@ try {
         throw new Exception('Dividend not found');
     }
 
-    $broker_id = (int)$existing['broker_id'];
+    $broker_account_id = (int)$existing['broker_account_id'];
 
     // --------------------------------------------------
     // 4) Build UPDATE statement dynamically
@@ -104,10 +104,10 @@ try {
     $chk = $pdo->prepare("
         SELECT has_cash_account
         FROM broker_account
-        WHERE id = :broker_id
+        WHERE id = :broker_account_id
         LIMIT 1
     ");
-    $chk->execute([':broker_id' => $broker_id]);
+    $chk->execute([':broker_account_id' => $broker_account_id]);
     $broker = $chk->fetch(PDO::FETCH_ASSOC);
 
     if ($broker && (int)$broker['has_cash_account'] === 1) {
@@ -132,11 +132,11 @@ try {
             INSERT INTO cash_transaction
                 (broker_account_id, date, amount, type, reference_id, comment)
             VALUES
-                (:broker_id, :date, :amount, 'DIVIDEND', :reference_id, NULL)
+                (:broker_account_id, :date, :amount, 'DIVIDEND', :reference_id, NULL)
         ");
 
         $ins->execute([
-            ':broker_id'    => $broker_id,
+            ':broker_account_id'    => $broker_account_id,
             ':date'         => $div['payment_date'] . ' 00:00:00',
             ':amount'       => $net_amount,
             ':reference_id' => $div_id
@@ -148,9 +148,9 @@ try {
         $sumStmt = $pdo->prepare("
             SELECT COALESCE(SUM(amount), 0) AS sum_amount
             FROM cash_transaction
-            WHERE broker_account_id = :broker_id
+            WHERE broker_account_id = :broker_account_id
         ");
-        $sumStmt->execute([':broker_id' => $broker_id]);
+        $sumStmt->execute([':broker_account_id' => $broker_account_id]);
         $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
 
         if ($sumRow) {
@@ -158,11 +158,11 @@ try {
                 UPDATE cash_account
                 SET current_balance = :bal,
                     updated_at = NOW()
-                WHERE broker_id = :broker_id
+                WHERE broker_account_id = :broker_account_id
             ");
             $updBal->execute([
                 ':bal'       => $sumRow['sum_amount'],
-                ':broker_id' => $broker_id
+                ':broker_account_id' => $broker_account_id
             ]);
         }
     }

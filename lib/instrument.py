@@ -15,8 +15,8 @@ class BrokerAccount:
     Represents a broker account.
     """
 
-    def __init__(self, broker_id, name, account_number, account_type, currency="EUR"):
-        self.id = broker_id
+    def __init__(self, broker_account_id, name, account_number, account_type, currency="EUR"):
+        self.id = broker_account_id
         self.name = name
         self.account_number = account_number
         self.account_type = account_type

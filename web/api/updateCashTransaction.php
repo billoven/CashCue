@@ -28,12 +28,12 @@ try {
     $tx->execute([':id' => $input['id']]);
     $txr = $tx->fetch(PDO::FETCH_ASSOC);
     if ($txr) {
-        $broker_id = $txr['broker_account_id'];
-        $sumStmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) AS sum_amount FROM cash_transaction WHERE broker_account_id = :broker_id");
-        $sumStmt->execute([':broker_id' => $broker_id]);
+        $broker_account_id = $txr['broker_account_id'];
+        $sumStmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) AS sum_amount FROM cash_transaction WHERE broker_account_id = :broker_account_id");
+        $sumStmt->execute([':broker_account_id' => $broker_account_id]);
         $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
-        $upd = $pdo->prepare("UPDATE cash_account SET current_balance = :bal, updated_at = NOW() WHERE broker_id = :broker_id");
-        $upd->execute([':bal' => $sumRow['sum_amount'], ':broker_id' => $broker_id]);
+        $upd = $pdo->prepare("UPDATE cash_account SET current_balance = :bal, updated_at = NOW() WHERE broker_account_id = :broker_account_id");
+        $upd->execute([':bal' => $sumRow['sum_amount'], ':broker_account_id' => $broker_account_id]);
     }
 
     echo json_encode(['success' => true]);

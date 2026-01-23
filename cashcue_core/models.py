@@ -41,7 +41,7 @@ class OrderTransaction(Base):
     __tablename__ = "order_transaction"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    broker_id = Column(Integer, ForeignKey("broker_account.id"), nullable=False)
+    broker_account_id = Column(Integer, ForeignKey("broker_account.id"), nullable=False)
     instrument_id = Column(Integer, ForeignKey("instrument.id"), nullable=False)
     order_type = Column(Enum("BUY","SELL"), nullable=False)
     quantity = Column(DECIMAL(12,4), nullable=False)
@@ -58,7 +58,7 @@ class Dividend(Base):
     __tablename__ = "dividend"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    broker_id = Column(Integer, ForeignKey("broker_account.id"), nullable=False)
+    broker_account_id = Column(Integer, ForeignKey("broker_account.id"), nullable=False)
     instrument_id = Column(Integer, ForeignKey("instrument.id"), nullable=False)
     amount = Column(DECIMAL(12,4), nullable=False)
     gross_amount = Column(DECIMAL(12,4))
@@ -74,7 +74,7 @@ class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshot"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    broker_id = Column(Integer, ForeignKey("broker_account.id"), nullable=False)
+    broker_account_id = Column(Integer, ForeignKey("broker_account.id"), nullable=False)
     date = Column(Date, nullable=False)
     total_value = Column(DECIMAL(14,2), nullable=False)
     invested_amount = Column(DECIMAL(14,2), nullable=False)

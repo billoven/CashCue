@@ -2,10 +2,15 @@
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json; charset=utf-8');
 
+// IMPORTANT:
+// Reversal must exactly negate the original cash impact,
+// not recompute a theoretical amount.
 try {
-    if (!isset($_GET['id'])) throw new Exception('Missing order id');
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
 
-    $order_id = (int)$_GET['id'];
+    if (!isset($data['id'])) throw new Exception('Missing order id');
+    $order_id = (int)$data['id'];
     $db = new Database();
     $pdo = $db->getConnection();
 
@@ -13,7 +18,7 @@ try {
 
     // 1️⃣ Récupérer l'ordre actif
     $sel = $pdo->prepare("
-        SELECT id, broker_id, order_type, quantity, price, fees, settled, status 
+        SELECT id, broker_account_id, order_type, quantity, price, fees, settled, status 
         FROM order_transaction 
         WHERE id = :id 
         LIMIT 1
@@ -23,17 +28,25 @@ try {
     if (!$order) throw new Exception('Order not found');
     if ($order['status'] !== 'ACTIVE') throw new Exception('Order is already cancelled');
 
-    $broker_id = (int)$order['broker_id'];
-    $amount = (float)$order['quantity'] * (float)$order['price'] + (float)$order['fees'];
-
-    // 2️⃣ Déterminer l'effet cash inverse
+    $broker_account_id = (int)$order['broker_account_id'];
     if ($order['order_type'] === 'BUY') {
-        $reversal_amount = $amount; // BUY original: cash decreases, reversal: cash increases
-    } elseif ($order['order_type'] === 'SELL') {
-        $reversal_amount = -$amount; // SELL original: cash increases, reversal: cash decreases
-    } else {
+        // Original BUY cash = -(qty * price + fees)
+        $reversal_amount =
+            (float)$order['quantity'] * (float)$order['price']
+            + (float)$order['fees'];
+    }
+    elseif ($order['order_type'] === 'SELL') {
+        // Original SELL cash = +(qty * price - fees)
+        $reversal_amount =
+            -(
+                (float)$order['quantity'] * (float)$order['price']
+                - (float)$order['fees']
+            );
+    }
+    else {
         throw new Exception('Unknown order type');
     }
+
 
     // 3️⃣ Marquer l'ordre comme CANCELLED
     $updOrder = $pdo->prepare("
@@ -47,10 +60,10 @@ try {
     $insCash = $pdo->prepare("
         INSERT INTO cash_transaction
         (broker_account_id, date, amount, type, reference_id, comment)
-        VALUES (:broker_id, NOW(), :amount, :type, :ref, :comment)
+        VALUES (:broker_account_id, NOW(), :amount, :type, :ref, :comment)
     ");
     $insCash->execute([
-        ':broker_id' => $broker_id,
+        ':broker_account_id' => $broker_account_id,
         ':amount' => $reversal_amount,
         ':type' => $order['order_type'],
         ':ref' => $order_id,
@@ -61,19 +74,19 @@ try {
     $sumStmt = $pdo->prepare("
         SELECT COALESCE(SUM(amount),0) AS sum_amount 
         FROM cash_transaction 
-        WHERE broker_account_id = :broker_id
+        WHERE broker_account_id = :broker_account_id
     ");
-    $sumStmt->execute([':broker_id' => $broker_id]);
+    $sumStmt->execute([':broker_account_id' => $broker_account_id]);
     $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
 
     $updBalance = $pdo->prepare("
         UPDATE cash_account 
         SET current_balance = :bal, updated_at = NOW() 
-        WHERE broker_id = :broker_id
+        WHERE broker_account_id = :broker_account_id
     ");
     $updBalance->execute([
         ':bal' => $sumRow['sum_amount'],
-        ':broker_id' => $broker_id
+        ':broker_account_id' => $broker_account_id
     ]);
 
     $pdo->commit();
