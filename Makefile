@@ -22,7 +22,7 @@ VERSION_FILE = $(INSTALL_DIR)/VERSION
 PYTHON = python3
 PIP = $(VENV_DIR)/bin/pip
 PYTHON_BIN = $(VENV_DIR)/bin/python
-CONFIG_FILE = /etc/cashcue/cashcue-dev.conf
+CONFIG_FILE = /etc/cashcue/cashcue.conf
 
 # ------------------------
 # Database config from .conf
