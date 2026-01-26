@@ -10,22 +10,26 @@
       <div class="modal-body">
         <form id="cashForm">
           <input type="hidden" id="cash_id">
-
-          <div class="mb-3">
-            <label class="form-label">Date</label>
-            <input type="datetime-local" id="cash_date" class="form-control" required>
+          <div class="mb-3 flatpickr-wrapper position-relative">
+            <label for="cash_date" class="form-label">Date</label>
+            <input id="cash_date"
+                  class="form-control"
+                  placeholder="Select date & time..."
+                  required>
+            <button type="button"
+                    id="closeCashCalendar"
+                    class="btn btn-sm btn-outline-secondary position-absolute"
+                    style="top: 30px; right: 5px; z-index: 1050;">
+              X
+            </button>
           </div>
-
           <div class="mb-3">
             <label class="form-label">Type</label>
             <select id="cash_type" class="form-select" required>
-              <option value="BUY">Buy (computed)</option>
-              <option value="SELL">Sell (computed)</option>
               <option value="DEPOSIT">Deposit</option>
               <option value="WITHDRAWAL">Withdrawal</option>
               <option value="FEES">Fees</option>
               <option value="ADJUSTMENT">Adjustment</option>
-              <option value="DIVIDEND">Dividend</option>
             </select>
           </div>
 

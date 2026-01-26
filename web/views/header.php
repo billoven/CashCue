@@ -39,10 +39,10 @@ $CASHCUE_VERSION = cashcue_get_version();
   <!-- Flatpickr JS -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-  <!-- Optionnel : Thème Bootstrap -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
+  <!-- Optional : Bootstrap theme Dark for better visibility -->
+  <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
 
-  <?php
+<?php
     if (!isset($BROKER_SCOPE)) {
         $BROKER_SCOPE = "single-or-all"; // valeur par défaut
     }

@@ -4,6 +4,7 @@
 
 console.log("manage_cash.js loaded");
 
+let cashDatePicker = null;
 let cashModal;
 let currentMode = "add"; // add | edit
 
@@ -12,7 +13,9 @@ let currentMode = "add"; // add | edit
 // ------------------------------------------------------------
 
 // ONLY these types are computed from orders and must be locked
-const LOCKED_TYPES = ["BUY", "SELL", "DIVIDEND"];
+const ALL_TYPES = ["BUY", "SELL", "DIVIDEND", "DEPOSIT", "ADJUSTMENT", "WITHDRAWAL", "FEES"];
+const MANUAL_TYPES = ["DEPOSIT", "ADJUSTMENT", "WITHDRAWAL", "FEES"];
+const LOCKED_TYPES = ALL_TYPES.filter(t => !MANUAL_TYPES.includes(t));
     
 // ------------------------------------------------------------
 // Helpers
@@ -106,21 +109,23 @@ async function reloadPageData() {
     }
 }
 
-// ------------------------------------------------------------
-// Modal handling
-// ------------------------------------------------------------
-
+//
 function openAddCashModal() {
     currentMode = "add";
     document.getElementById("cashModalTitle").innerText = "Add Cash Movement";
-    document.getElementById("cashForm").reset();
+
     document.getElementById("cash_id").value = "";
+    document.getElementById("cash_amount").value = "";
+    document.getElementById("cash_comment").value = "";
 
-    // Type always editable when adding
-    document.getElementById("cash_type").disabled = false;
+    const typeSelect = document.getElementById("cash_type");
+    typeSelect.disabled = false;
+    typeSelect.value = "DEPOSIT";
 
+    cashDatePicker.setDate(new Date(), true);
     cashModal.show();
 }
+
 
 async function editCash(id) {
     currentMode = "edit";
@@ -144,12 +149,14 @@ async function editCash(id) {
 
         document.getElementById("cashModalTitle").innerText = "Edit Cash Movement";
         document.getElementById("cash_id").value = row.id;
-        document.getElementById("cash_date").value = row.date.replace(" ", "T");
+
+        // Edit mode: truncate seconds to match minute-only rule
+        cashDatePicker.setDate(row.date.substring(0, 16), true);
 
         const typeSelect = document.getElementById("cash_type");
         typeSelect.value = type;
 
-        // 🔒 ONLY BUY / SELL are locked
+        // 🔒 ONLY BUY / SELL / DIVIDEND are locked
         typeSelect.disabled = LOCKED_TYPES.includes(type);
 
         document.getElementById("cash_amount").value = row.amount;
@@ -170,6 +177,10 @@ async function editCash(id) {
 async function saveCash() {
     const brokerId = getActiveBrokerId();
 
+    const dateInput = document.getElementById("cash_date");
+    console.log("cash_date raw value:", dateInput.value);
+    console.log("cash_date element:", dateInput);
+
     const payload = {
         broker_account_id: brokerId,
         date: document.getElementById("cash_date").value,
@@ -188,6 +199,7 @@ async function saveCash() {
     }
 
     try {
+        console.log("Saving cash with payload", payload);
         const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -204,6 +216,9 @@ async function saveCash() {
         reloadPageData();
 
     } catch (err) {
+
+
+        console.log("Saving cash with payload", payload);
         console.error("Save cash failed", err);
         alert(`Cash save failed: ${err.message}`);
     }
@@ -249,6 +264,16 @@ document.addEventListener("brokerChanged", () => {
 // ------------------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
+
+    cashDatePicker = flatpickr("#cash_date", {
+        enableTime: true,
+        time_24hr: true,
+        enableSeconds: false,
+        altInput: true,
+        altFormat: "d/m/Y H:i",
+        dateFormat: "Y-m-d H:i",
+        allowInput: true,
+    });
 
     cashModal = new bootstrap.Modal(
         document.getElementById("cashModal")
