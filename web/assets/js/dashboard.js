@@ -3,44 +3,112 @@
 console.log("dashboard.js loaded");
 
 // ---------------------------------------------------
-//  Helpers
+// Prepare Variables for Realtime prices tables sorting
 // ---------------------------------------------------
-function reloadDashboardData() {
-    const accountId = getActiveBrokerAccountId();
+let realtimePrices = [];
+let currentSort = {
+  key: null,
+  type: null,
+  direction: 'asc'
+};
 
-    console.log("Dashboard: reload with accountId =", accountId);
+/**
+ * Initialize sorting for the Realtime Prices table using event delegation.
+ *
+ * Listens for click events on the table container and reacts
+ * only when a sortable table header (<th.sortable>) is clicked.
+ *
+ * This approach is robust against DOM re-rendering and works
+ * correctly inside Bootstrap .table-responsive containers.
+ */
+function initRealtimeTableSorting() {
+  const container = document.getElementById("realtimeTableContainer");
 
-    loadPortfolioSummary(accountId);
-    loadPortfolioHistory(accountId);
-    loadRealtimePrices(accountId);
-    loadLastOrders(accountId);
+  if (!container) return;
+
+  container.onclick = (event) => {
+    const th = event.target.closest("th.sortable");
+
+    if (!th) return;
+
+    console.log("🔥 SORT CLICK on", th.dataset.sortKey);
+
+    const key = th.dataset.sortKey;
+    const type = th.dataset.sortType;
+
+    if (!key) return;
+
+    // Toggle sort direction
+    if (currentSort.key === key) {
+      currentSort.direction = currentSort.direction === "asc" ? "desc" : "asc";
+    } else {
+      currentSort.key = key;
+      currentSort.type = type;
+      currentSort.direction = "asc";
+    }
+
+    // Reset icons
+    container
+      .querySelectorAll("th.sortable")
+      .forEach(h => h.classList.remove("sorted-asc", "sorted-desc"));
+
+    // Apply active sort class
+    th.classList.add(`sorted-${currentSort.direction}`);
+
+    // Sort in memory
+    realtimePrices = sortRealtimePrices(
+      realtimePrices,
+      currentSort.key,
+      currentSort.type,
+      currentSort.direction
+    );
+
+    // Re-render table
+    renderRealtimePricesTable(realtimePrices);
+  };
 }
-
-// ---------------------------------------------------
-//  DOM Ready
-// ---------------------------------------------------
-document.addEventListener("DOMContentLoaded", async () => {
-    console.log("dashboard.js: DOM ready");
-
-    // Attendre que header.js ait fini de charger la liste des comptes
-    await waitForBrokerSelector();
-    console.log("dashboard.js: Broker selector is ready");
-
-    // Chargement initial du dashboard
-    reloadDashboardData();
-
-    // Recharger quand l'utilisateur change de broker
-    onBrokerAccountChange((newId) => {
-        console.log("dashboard.js: broker changed →", newId);
-        reloadDashboardData();
-    });
-});
-
-
 
 
 /**
- * Load realtime instrument prices (with full debug)
+ * Sort realtime prices dataset in memory.
+ *
+ * @param {Array<Object>} data
+ * @param {string} key
+ * @param {string} type  "string" | "number"
+ * @param {string} direction "asc" | "desc"
+ * @returns {Array<Object>} sorted copy of data
+ */
+function sortRealtimePrices(data, key, type, direction) {
+  return [...data].sort((a, b) => {
+    let v1 = a[key];
+    let v2 = b[key];
+
+    if (type === "number") {
+      v1 = parseFloat(v1);
+      v2 = parseFloat(v2);
+      v1 = isNaN(v1) ? -Infinity : v1;
+      v2 = isNaN(v2) ? -Infinity : v2;
+    } else {
+      v1 = v1?.toString().toLowerCase() || "";
+      v2 = v2?.toString().toLowerCase() || "";
+    }
+
+    if (v1 < v2) return direction === "asc" ? -1 : 1;
+    if (v1 > v2) return direction === "asc" ? 1 : -1;
+    return 0;
+  });
+}
+
+/**
+ * Load realtime instrument prices (with full debug).
+ *
+ * This function is responsible for:
+ * - Fetching realtime prices from the backend API
+ * - Performing basic response validation and error handling
+ * - Storing the received data as the canonical in-memory dataset
+ * - Delegating all HTML rendering to renderRealtimePricesTable()
+ *
+ * It does NOT build or manipulate table markup directly.
  */
 function loadRealtimePrices(accountId) {
   const container = document.getElementById("realtimeTableContainer");
@@ -84,89 +152,171 @@ function loadRealtimePrices(accountId) {
 
       console.log(`✔ ${data.data.length} realtime entries received.`);
 
-      // Build table
-      const table = document.createElement("table");
-      table.className = "table table-striped table-hover align-middle";
-      table.innerHTML = `
-        <thead class="table-dark">
-          <tr>
-            <th>Symbol</th>
-            <th>Label</th>
-            <th>Price</th>
-            <th>Change (%)</th>
-            <th>Updated</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.data.map(row => {
+      // --------------------------------------------------
+      // Store canonical realtime dataset in memory
+      // --------------------------------------------------
+      realtimePrices = data.data;
+      renderRealtimePricesTable(realtimePrices);
+      initRealtimeTableSorting(); // ✅ table EXISTE maintenant
 
-              // ---------------------------------------------
-              // Normalize pct_change value safely
-              // parseFloat() converts numeric strings → number
-              // If row.pct_change is null/undefined/invalid → pct becomes NaN
-              // ---------------------------------------------
-              let pct = parseFloat(row.pct_change);
+      // --------------------------------------------------
+      // Delegate rendering to the dedicated render function
+      // --------------------------------------------------
+      renderRealtimePricesTable(realtimePrices);
 
-              // ---------------------------------------------
-              // Detect if pct_change is a valid number
-              // isNaN(pct) → true for NaN, undefined, null, empty string, etc.
-              // ---------------------------------------------
-              const hasPct = !isNaN(pct);
-
-              // ---------------------------------------------
-              // Format value for display
-              // Only call .toFixed() when pct is a real number
-              // Otherwise display "-"
-              // ---------------------------------------------
-              const pctFormatted = hasPct ? pct.toFixed(2) + '%' : '-';
-
-              // ---------------------------------------------
-              // Apply green (positive) or red (negative) color
-              // Only when the number is valid
-              // No color class if pct is missing
-              // ---------------------------------------------
-              const pctClass = hasPct
-                  ? (pct >= 0 ? 'text-success' : 'text-danger')
-                  : '';
-
-              // ---------------------------------------------
-              // Build the table row
-              // The pctFormatted and pctClass variables are used safely
-              // ---------------------------------------------
-              return `
-                <tr class="instrument-row" data-id="${row.instrument_id}" style="cursor:pointer;">
-                  <td>${row.symbol}</td>
-                  <td>${row.label}</td>
-                  <td>${parseFloat(row.price).toFixed(3)} ${row.currency}</td>
-                  <td class="${pctClass}">${pctFormatted}</td>
-                  <td>${row.captured_at}</td>
-                </tr>`;
-          }).join("")}
-        </tbody>
-      `;
-
-      container.innerHTML = "";
-      container.appendChild(table);
-
-      console.log("▶ Table rendered, attaching click handlers…");
-
-      // Click on row → show chart
-      document.querySelectorAll(".instrument-row").forEach(row => {
-        row.addEventListener("click", () => {
-          const id = row.dataset.id;
-          const name = row.children[1].textContent;
-          console.log(`▶ Instrument clicked: ${id} ${name}`);
-          loadInstrumentChart(id, name);
-        });
-      });
-
-      console.log("✔ Realtime prices fully loaded.");
+      console.log("✔ Realtime prices fully loaded and rendered.");
     })
     .catch(err => {
       console.error("❌ Exception during fetch:", err);
-      container.innerHTML = `<p class="text-danger">Error loading realtime data: ${err}</p>`;
+      container.innerHTML =
+        `<p class="text-danger">Error loading realtime data: ${err}</p>`;
     });
 }
+
+/**
+ * Render the Realtime Prices table in the dashboard.
+ *
+ * This function is responsible ONLY for rendering the HTML table
+ * from an already-loaded dataset. It does NOT perform any data fetching.
+ *
+ * Responsibilities:
+ * - Build the realtime prices table markup
+ * - Safely format numeric values (price, percentage change)
+ * - Apply visual indicators (green/red) for positive/negative changes
+ * - Attach click handlers on instrument rows to load the price chart
+ *
+ * Data contract (expected fields per row):
+ * - instrument_id   (number)
+ * - symbol          (string)
+ * - label           (string)
+ * - price           (number|string)
+ * - currency        (string)
+ * - pct_change      (number|string|null)
+ * - captured_at     (datetime string)
+ *
+ * @param {Array<Object>} data
+ *   Array of realtime instrument price objects returned by the backend.
+ */
+function renderRealtimePricesTable(data) {
+  const container = document.getElementById("realtimeTableContainer");
+  if (!container) return;
+
+  const table = document.createElement("table");
+  table.className = "table table-striped table-hover align-middle";
+
+  table.innerHTML = `
+    <thead class="table-dark">
+      <tr>
+        <th class="sortable ${currentSort.key === 'symbol' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="symbol" data-sort-type="string">
+        <div class="th-content">
+          <span class="th-label">Symbol</span>
+          <span class="sort-icons">
+            <i class="bi bi-caret-up-fill"></i>
+            <i class="bi bi-caret-down-fill"></i>
+          </span>
+        </div>
+        </th>
+        <th class="sortable ${currentSort.key === 'label' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="label" data-sort-type="string">
+        <div class="th-content">
+          <span class="th-label">Label</span>
+          <span class="sort-icons">
+            <i class="bi bi-caret-up-fill"></i>
+            <i class="bi bi-caret-down-fill"></i>
+          </span>
+        </div>
+        </th>
+        <th class="sortable ${currentSort.key === 'price' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="price" data-sort-type="number">
+        <div class="th-content">
+          <span class="th-label">Price</span>
+          <span class="sort-icons">
+            <i class="bi bi-caret-up-fill"></i>
+            <i class="bi bi-caret-down-fill"></i>
+          </span>
+        </div>
+        </th>
+        <th class="sortable ${currentSort.key === 'pct_change' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="pct_change" data-sort-type="number">
+        <div class="th-content">
+          <span class="th-label">Change (%)</span>
+          <span class="sort-icons">
+            <i class="bi bi-caret-up-fill"></i>
+            <i class="bi bi-caret-down-fill"></i>
+          </span>
+        </div>
+        </th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${data.map(row => {
+        let pct = parseFloat(row.pct_change);
+        const hasPct = !isNaN(pct);
+        const pctFormatted = hasPct ? pct.toFixed(2) + '%' : '-';
+        const pctClass = hasPct
+          ? (pct >= 0 ? 'text-success' : 'text-danger')
+          : '';
+
+        return `
+          <tr class="instrument-row" data-id="${row.instrument_id}" style="cursor:pointer;">
+            <td>${row.symbol}</td>
+            <td>${row.label}</td>
+            <td>${parseFloat(row.price).toFixed(3)} ${row.currency}</td>
+            <td class="${pctClass}">${pctFormatted}</td>
+            <td>${row.captured_at}</td>
+          </tr>`;
+      }).join("")}
+    </tbody>
+  `;
+
+  container.innerHTML = "";
+  container.appendChild(table);
+
+  // Click on row → show chart
+  document.querySelectorAll(".instrument-row").forEach(row => {
+    row.addEventListener("click", () => {
+      const id = row.dataset.id;
+      const name = row.children[1].textContent;
+      loadInstrumentChart(id, name);
+    });
+  });
+}
+
+
+// ---------------------------------------------------
+//  Helpers
+// ---------------------------------------------------
+function reloadDashboardData() {
+    const accountId = getActiveBrokerAccountId();
+
+    console.log("Dashboard: reload with accountId =", accountId);
+
+    loadPortfolioSummary(accountId);
+    loadPortfolioHistory(accountId);
+    loadRealtimePrices(accountId);
+    loadLastOrders(accountId);
+}
+
+// ---------------------------------------------------
+//  DOM Ready
+// ---------------------------------------------------
+document.addEventListener("DOMContentLoaded", async () => {
+    console.log("dashboard.js: DOM ready");
+
+    // Attendre que header.js ait fini de charger la liste des comptes
+    await waitForBrokerSelector();
+    console.log("dashboard.js: Broker selector is ready");
+
+    // Chargement initial du dashboard
+    reloadDashboardData();
+
+    // Recharger quand l'utilisateur change de broker
+    onBrokerAccountChange((newId) => {
+        console.log("dashboard.js: broker changed →", newId);
+        reloadDashboardData();
+    });
+});
+
+
+
 
 
 /**

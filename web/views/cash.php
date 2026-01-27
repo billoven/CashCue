@@ -15,11 +15,11 @@
     <h2 class="mb-0">💶 Cash Account Overview</h2>
 
     <select id="cashRange" class="form-select w-auto">
+      <option value="all">All</option>
       <option value="30">Last 30 days</option>
       <option value="90">3 months</option>
       <option value="180">6 months</option>
       <option value="365">1 year</option>
-      <option value="all">All</option>
     </select>
   </div>
 

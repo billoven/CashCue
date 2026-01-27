@@ -68,30 +68,79 @@
 
   <!-- 🔹 Realtime Prices & Recent Orders -->
   <div class="row">
+
+    <!-- 🔹 Realtime Prices (triable) -->
     <div class="col-md-8">
       <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white fw-bold">Realtime Prices</div>
+        <div class="card-header bg-primary text-white fw-bold">
+          Realtime Prices
+        </div>
         <div class="card-body table-responsive" id="realtimeTableContainer">
           <table class="table table-striped table-hover align-middle">
             <thead class="table-dark">
               <tr>
-                <th>Symbol</th>
-                <th>Label</th>
-                <th>Price</th>
+                <th class="sortable"
+                    data-sort-key="symbol"
+                    data-sort-type="string">
+                  <div class="th-content">
+                    <span class="th-label">Symbol</span>
+                    <span class="sort-icons">
+                      <i class="bi bi-caret-up-fill"></i>
+                      <i class="bi bi-caret-down-fill"></i>
+                    </span>
+                  </div>
+                </th>
+                <th class="sortable"
+                    data-sort-key="label"
+                    data-sort-type="string">
+                  <div class="th-content">
+                    <span class="th-label">Label</span>
+                    <span class="sort-icons">
+                      <i class="bi bi-caret-up-fill"></i>
+                      <i class="bi bi-caret-down-fill"></i>
+                    </span>
+                  </div>
+                </th>
+                <th class="sortable text-end"
+                    data-sort-key="price"
+                    data-sort-type="number">
+                  <div class="th-content justify-end">
+                    <span class="th-label">Price</span>
+                    <span class="sort-icons">
+                      <i class="bi bi-caret-up-fill"></i>
+                      <i class="bi bi-caret-down-fill"></i>
+                    </span>
+                  </div>
+                </th>
                 <th>Currency</th>
-                <th>% Change</th>
+                <th class="sortable text-end"
+                    data-sort-key="change_pct"
+                    data-sort-type="number">
+                  <div class="th-content justify-end">
+                    <span class="th-label">% Change</span>
+                    <span class="sort-icons">
+                      <i class="bi bi-caret-up-fill"></i>
+                      <i class="bi bi-caret-down-fill"></i>
+                    </span>
+                  </div>
+                </th>
                 <th>Updated</th>
               </tr>
             </thead>
-            <tbody id="realtimeTableBody"><!-- JS populates --></tbody>
+            <tbody id="realtimeTableBody">
+              <!-- JS populates -->
+            </tbody>
           </table>
         </div>
       </div>
     </div>
 
+    <!-- 🔹 Last Orders (INCHANGÉ) -->
     <div class="col-md-4">
       <div class="card shadow-sm mb-4">
-        <div class="card-header bg-secondary text-white fw-bold">Last Orders</div>
+        <div class="card-header bg-secondary text-white fw-bold">
+          Last Orders
+        </div>
         <div class="card-body table-responsive">
           <table class="table table-sm table-hover align-middle">
             <thead class="table-light">
@@ -103,11 +152,14 @@
                 <th>Date</th>
               </tr>
             </thead>
-            <tbody id="ordersTableBody"><!-- JS populates --></tbody>
+            <tbody id="ordersTableBody">
+              <!-- JS populates -->
+            </tbody>
           </table>
         </div>
       </div>
     </div>
+
   </div>
   
   <!-- 🔹 Instrument Intraday Chart -->

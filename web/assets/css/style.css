@@ -104,3 +104,64 @@ body {
   cursor: not-allowed;
   pointer-events: none;
 }
+
+/* =====================================================
+   Realtime table sorting – header layout
+   ===================================================== */
+
+/* Make sortable headers clickable */
+th.sortable {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Container for label + sort icons */
+th.sortable .th-content {
+  display: inline-flex;          /* Keep content compact */
+  align-items: center;           /* Vertical centering */
+  gap: 6px;                      /* Space between label and icons */
+}
+
+/* Column label */
+th.sortable .th-label {
+  display: inline-block;
+}
+
+/* =====================================================
+   Sort icons (stacked vertically)
+   ===================================================== */
+
+/* Icons container */
+th.sortable .sort-icons {
+  display: flex;
+  flex-direction: column;        /* ▲ above ▼ */
+  font-size: 0.65em;
+  line-height: 0.8;
+  pointer-events: none;          /* Click handled by <th> */
+  opacity: 0.5;
+}
+
+/* Default icon color (inactive) */
+th.sortable .sort-icons i {
+  color: #81ebf5;
+  opacity: 1;
+}
+
+/* Active ascending sort */
+th.sorted-asc .sort-icons i:first-child {
+  color: #fff;
+  opacity: 1;
+}
+
+/* Active descending sort */
+th.sorted-desc .sort-icons i:last-child {
+  color: #fff;
+  opacity: 1;
+}
+
+/* =====================================================
+   Right-aligned sortable columns (Price, % Change)
+   ===================================================== */
+th.sortable.text-end .th-content {
+  justify-content: flex-end;
+}
