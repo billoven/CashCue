@@ -1,96 +1,108 @@
 <?php
+/**
+ * getPortfolioHistory.php
+ *
+ * Provides historical portfolio data:
+ *  - daily invested amount (BUY orders only)
+ *  - cumulative invested capital
+ *  - portfolio value from snapshots
+ *
+ * Broker handling:
+ *  - broker_account_id = ALL  → aggregate all brokers
+ *  - broker_account_id = <id> → single broker
+ *
+ * IMPORTANT:
+ *  - Uses Cashcue order model:
+ *      status  = 'ACTIVE'
+ *      settled = 1
+ *  - CANCELLED or unsettled orders are excluded
+ *  - Security / ownership checks are intentionally excluded for now
+ */
+
+
 header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
 
 try {
-    $db = new Database('production');
+    $db  = new Database('production');
     $pdo = $db->getConnection();
 
-    // -----------------------------
-    // 1) Get and sanitize parameters
-    // -----------------------------
-    $daysLimit = isset($_GET['range']) ? max(1, intval($_GET['range'])) : 30;
+    // --------------------------------------------------
+    // 1) Parameters
+    // --------------------------------------------------
+    $daysLimit = isset($_GET['range']) ? max(1, (int)$_GET['range']) : 30;
 
     $brokerId = $_GET['broker_account_id'] ?? 'all';
-    $isAll = ($brokerId === 'all' || $brokerId === '' || $brokerId === null);
+    $isAll    = ($brokerId === 'all' || $brokerId === '' || $brokerId === null);
 
-    // -----------------------------
-    // 2) Build WHERE filters
-    // -----------------------------
-    // $dateFilter = "date >= DATE_SUB(CURDATE(), INTERVAL :daysLimit DAY)";
-    $dateFilter = "COALESCE(ps.date, di.date) >= DATE_SUB(CURDATE(), INTERVAL :daysLimit DAY)";
+    // --------------------------------------------------
+    // 2) Filters
+    // --------------------------------------------------
+    $otFilter = $isAll ? '' : 'AND ot.broker_account_id = :brokerId';
+    $psFilter = $isAll ? '' : 'AND ps.broker_account_id = :brokerId';
 
-
-    // Filter for portfolio_snapshot
-    $psFilter = $isAll 
-        ? ""
-        : "AND broker_account_id = :brokerId";
-
-    // Filter for order_transaction
-    $otFilter = $isAll
-        ? ""
-        : "WHERE broker_account_id = :brokerId";
-
-    // -----------------------------
-    // 3) SQL query with account filter
-    // -----------------------------
+    // --------------------------------------------------
+    // 3) SQL
+    // --------------------------------------------------
     $sql = "
         WITH daily_investments AS (
-            SELECT 
-                DATE(trade_date) AS date,
-                SUM(
-                    CASE 
-                        WHEN order_type = 'BUY' THEN quantity * price
-                        WHEN order_type = 'SELL' THEN -quantity * price
-                        ELSE 0 
-                    END
-                ) AS daily_invested
-            FROM order_transaction
-            $otFilter
-            GROUP BY DATE(trade_date)
-        ),
-
-        joined_data AS (
-            SELECT 
-                COALESCE(ps.date, di.date) AS date,
-                ROUND(COALESCE(di.daily_invested, 0), 2) AS daily_invested,
-                ROUND(COALESCE(ps.total_value, 0), 2) AS portfolio
-            FROM portfolio_snapshot ps
-            LEFT JOIN daily_investments di ON di.date = ps.date
-            WHERE $dateFilter
-            $psFilter
-        )
-
-        SELECT 
-            date,
-            daily_invested,
+        SELECT
+            DATE(ot.trade_date) AS date,
             ROUND(
-                SUM(daily_invested) OVER (
-                    ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                ), 2
-            ) AS cum_invested,
-            portfolio
-        FROM joined_data
-        ORDER BY date ASC;
+                SUM(
+                    CASE
+                        -- BUY only: real invested capital
+                        WHEN ot.order_type = 'BUY'
+                            AND ot.status = 'ACTIVE'
+                            AND ot.settled = 1
+                        THEN ot.quantity * ot.price
+                        ELSE 0
+                    END
+                ),
+            2) AS daily_invested
+        FROM order_transaction ot
+        WHERE
+            1 = 1
+            $otFilter
+        GROUP BY DATE(ot.trade_date)
+    ),
+
+    merged AS (
+        SELECT
+            COALESCE(ps.date, di.date) AS date,
+            COALESCE(di.daily_invested, 0) AS daily_invested,
+            COALESCE(ps.total_value, 0) AS portfolio
+        FROM portfolio_snapshot ps
+        LEFT JOIN daily_investments di
+            ON di.date = ps.date
+        WHERE
+            COALESCE(ps.date, di.date)
+                >= DATE_SUB(CURDATE(), INTERVAL :daysLimit DAY)
+            $psFilter
+    )
+
+    SELECT
+        date,
+        daily_invested,
+        ROUND(
+            SUM(daily_invested)
+            OVER (ORDER BY date),
+        2) AS cum_invested,
+        ROUND(portfolio, 2) AS portfolio
+    FROM merged
+    ORDER BY date ASC
     ";
 
     $stmt = $pdo->prepare($sql);
-
-    // -----------------------------
-    // 4) Bind parameters
-    // -----------------------------
     $stmt->bindValue(':daysLimit', $daysLimit, PDO::PARAM_INT);
 
     if (!$isAll) {
-        $stmt->bindValue(':brokerId', intval($brokerId), PDO::PARAM_INT);
+        $stmt->bindValue(':brokerId', (int)$brokerId, PDO::PARAM_INT);
     }
 
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // -----------------------------
-    // 5) Output JSON
-    // -----------------------------
     echo json_encode([
         'status' => 'success',
         'data'   => $rows
@@ -98,10 +110,8 @@ try {
 
 } catch (Exception $e) {
     echo json_encode([
-        'status' => 'error',
+        'status'  => 'error',
         'message' => $e->getMessage()
     ]);
-    exit;
 }
-
 

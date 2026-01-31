@@ -285,7 +285,12 @@ function renderRealtimePricesTable(data) {
 //  Helpers
 // ---------------------------------------------------
 function reloadDashboardData() {
-    const accountId = getActiveBrokerAccountId();
+    const accountId = window.CashCueAppContext.getBrokerAccountId();
+
+    if (!accountId) {
+        console.warn("Dashboard: brokerAccountId not ready, cannot reload data");
+        return;
+    }
 
     console.log("Dashboard: reload with accountId =", accountId);
 
@@ -301,19 +306,21 @@ function reloadDashboardData() {
 document.addEventListener("DOMContentLoaded", async () => {
     console.log("dashboard.js: DOM ready");
 
-    // Attendre que header.js ait fini de charger la liste des comptes
-    await waitForBrokerSelector();
-    console.log("dashboard.js: Broker selector is ready");
+    // Attendre que CashCueAppContext ait le brokerAccountId
+    await window.CashCueAppContext.waitForBrokerAccount();
+    console.log("dashboard.js: brokerAccountId is ready →", window.CashCueAppContext.getBrokerAccountId());
 
     // Chargement initial du dashboard
     reloadDashboardData();
 
-    // Recharger quand l'utilisateur change de broker
-    onBrokerAccountChange((newId) => {
+    // Recharger automatiquement quand le broker change
+    document.addEventListener("brokerAccountChanged", (evt) => {
+        const newId = evt.detail.brokerAccountId;
         console.log("dashboard.js: broker changed →", newId);
         reloadDashboardData();
     });
 });
+
 
 
 

@@ -200,6 +200,7 @@
 </div>
 
 <!-- Page JS -->
+<script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/manage_dividends.js"></script>
 
 <?php require_once __DIR__ . '/../footer.php'; ?>

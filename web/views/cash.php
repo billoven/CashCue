@@ -78,7 +78,7 @@
   </div>
 
 </div>
-
+<script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/cash.js"></script>
 
 <?php require_once __DIR__ . '/footer.php'; ?>

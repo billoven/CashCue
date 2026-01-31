@@ -48,6 +48,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/portfolio.js"></script>
 
 <?php require_once __DIR__ . '/footer.php'; ?>

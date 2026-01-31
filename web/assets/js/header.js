@@ -1,167 +1,129 @@
+/// ============================================================
+// CashCue – Global Broker Account Selector Controller
 // ============================================================
-//  Global Broker Account Controller — Refactored Version
-//  Centralized broker selection logic with page-level policies
+// Responsibility:
+// - Populate the broker account selector in the header
+// - Restore last selected broker from localStorage
+// - Persist broker selection
+// - Notify global context when broker is ready
+// - Reload page on broker change
+//
+// Design principle:
+// - This file does NOT expose any global getter for brokerAccountId
+// - Pages should use CashCueContext.waitForBrokerAccount promise
 // ============================================================
 
 console.log("header.js loaded");
 
 // ------------------------------------------------------------
-// 1. Page Mode Detection
+// 1. Read configuration injected by header.php
 // ------------------------------------------------------------
 const BROKER_SCOPE = window.__BROKER_SCOPE__ || "single-or-all";
-console.log("header.js: Broker scope =", BROKER_SCOPE);
+console.log("CashCue: broker scope =", BROKER_SCOPE);
 
 // ------------------------------------------------------------
-// 2. Internal State and Callbacks
-// ------------------------------------------------------------
-let brokerSelectorReady = false;
-let brokerSelectorCallbacks = [];
-let brokerChangeCallbacks = [];
-
-// Public API
-window.waitForBrokerSelector = function () {
-    return new Promise(resolve => {
-        if (brokerSelectorReady) resolve();
-        else brokerSelectorCallbacks.push(resolve);
-    });
-};
-
-window.getActiveBrokerAccountId = function () {
-    const select = document.getElementById("activeAccountSelect");
-    if (!select) return "all";
-    return select.value;
-};
-
-window.onBrokerAccountChange = function (callback) {
-    brokerChangeCallbacks.push(callback);
-};
-
-function dispatchBrokerChanged(accountId) {
-    document.dispatchEvent(
-        new CustomEvent("brokerChanged", {
-            detail: { brokerId: accountId }
-        })
-    );
-}
-
-
-// ------------------------------------------------------------
-// 3. DOM Content Loaded
+// 2. DOM Ready
 // ------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
 
-    const area = document.getElementById("brokerAccountArea");
+    const area   = document.getElementById("brokerAccountArea");
     const select = document.getElementById("activeAccountSelect");
 
     // --------------------------------------------------------
-    // CASE 1 : mode BROKER_SCOPE = "disabled"
-    //         => remove selector, replace with a clean message
+    // CASE 1: Broker selection disabled
     // --------------------------------------------------------
     if (BROKER_SCOPE === "disabled") {
-
         if (area) {
             area.innerHTML = `
                 <div class="text-muted small fst-italic">
-                    No broker account selection on this page
+                    Broker selection disabled on this page
                 </div>
             `;
         }
-
-        brokerSelectorReady = true;
-        brokerSelectorCallbacks.forEach(cb => cb());
-        console.log("header.js: selector disabled (clean replacement)");
-        return;   // safe because we are inside DOMContentLoaded callback
-    }
-
-    // --------------------------------------------------------
-    // CASE 2 : selector is expected, but missing from DOM
-    // --------------------------------------------------------
-    if (!select) {
-        console.warn("header.js: No #activeAccountSelect found, but scope =", BROKER_SCOPE);
-        brokerSelectorReady = true;
-        brokerSelectorCallbacks.forEach(cb => cb());
+        console.log("CashCue: broker selector disabled");
         return;
     }
 
-    // Temporary placeholder
-    select.innerHTML = '<option>Loading accounts...</option>';
+    // --------------------------------------------------------
+    // CASE 2: Selector missing (defensive)
+    // --------------------------------------------------------
+    if (!select) {
+        console.warn("CashCue: #activeAccountSelect not found");
+        return;
+    }
+
+    // Temporary placeholder while loading
+    select.innerHTML = `<option>Loading accounts…</option>`;
 
     // --------------------------------------------------------
-    // 4. Fetch accounts list (normal mode)
+    // 3. Load broker accounts from API
     // --------------------------------------------------------
-    fetch('/cashcue/api/getBrokerAccounts.php')
-        .then(resp => resp.json())
+    fetch("/cashcue/api/getBrokerAccounts.php")
+        .then(r => r.json())
         .then(accounts => {
 
-            select.innerHTML = ""; // clear
+            select.innerHTML = "";
 
-            // MODE: single-or-all  (full functionality)
+            // Add "All Accounts" option if allowed
             if (BROKER_SCOPE === "single-or-all" || BROKER_SCOPE === "portfolio") {
-                const optAll = document.createElement("option");
-                optAll.value = "all";
-                optAll.textContent = "All Accounts";
-                select.appendChild(optAll);
+                select.insertAdjacentHTML(
+                    "beforeend",
+                    `<option value="all">All Accounts</option>`
+                );
             }
 
-            // Append accounts
+            // Add individual broker accounts
             accounts.forEach(acc => {
-                const opt = document.createElement("option");
-                opt.value = acc.id;
-                opt.textContent = acc.label;
-                select.appendChild(opt);
+                select.insertAdjacentHTML(
+                    "beforeend",
+                    `<option value="${acc.id}">${acc.label}</option>`
+                );
             });
 
-            // Restore previous selection
-            const saved = localStorage.getItem("selectedAccount");
+            // --------------------------------------------------------
+            // 4. Restore persisted broker selection
+            // --------------------------------------------------------
+            let saved = localStorage.getItem("selectedAccount");
+            if (!saved || !select.querySelector(`option[value="${saved}"]`)) {
+                saved = (BROKER_SCOPE === "single" && accounts.length)
+                    ? accounts[0].id
+                    : "all";
+                localStorage.setItem("selectedAccount", saved);
+            }
+            select.value = saved;
+            console.log("CashCue: broker restored →", saved);
 
-            if (
-                saved && 
-                select.querySelector(`option[value="${saved}"]`)
-            ) {
-                select.value = saved;
-                console.log("header.js: restored saved account →", saved);
-
-            } else {
-                if (BROKER_SCOPE === "single") {
-                    const first = accounts.length > 0 ? accounts[0].id : "all";
-                    select.value = first;
-                    console.log("header.js: using default (single) →", first);
-
-                } else {
-                    select.value = "all";
-                    console.log("header.js: using default (all)");
-                }
+            // --------------------------------------------------------
+            // 5. Notify global context that broker is ready
+            // --------------------------------------------------------
+            if (window.CashCueContext && typeof window.CashCueContext.setBrokerAccountId === "function") {
+                window.CashCueContext.setBrokerAccountId(saved);
+                console.log("CashCueContext updated with brokerAccountId →", saved);
             }
 
-            // Mark selector ready
-            brokerSelectorReady = true;
-            brokerSelectorCallbacks.forEach(cb => cb());
-            brokerChangeCallbacks.forEach(cb => cb(select.value));
-            dispatchBrokerChanged(select.value);
-
-            // Event Listener
+            // --------------------------------------------------------
+            // 6. Handle broker change (STANDARD RULE)
+            // --------------------------------------------------------
             select.addEventListener("change", () => {
-                const newVal = select.value;
-                localStorage.setItem("selectedAccount", newVal);
-                console.log("header.js: active account changed →", newVal);
+                const value = select.value;
+                console.log("CashCue: broker changed →", value);
 
-                brokerChangeCallbacks.forEach(cb => cb(newVal));
-                dispatchBrokerChanged(newVal);
+                // Persist globally
+                localStorage.setItem("selectedAccount", value);
 
-                if (BROKER_SCOPE === "portfolio") {
-                    document.dispatchEvent(new CustomEvent("portfolioBrokerChanged", {
-                        detail: { accountId: newVal }
-                    }));
+                // Update global context
+                if (window.CashCueContext && typeof window.CashCueContext.setBrokerAccountId === "function") {
+                    window.CashCueContext.setBrokerAccountId(value);
                 }
+
+                // GLOBAL RULE: broker change = context change = reload page
+                window.location.reload();
             });
 
         })
         .catch(err => {
-            console.error("header.js: failed to load accounts", err);
-            select.innerHTML = '<option>Error</option>';
-            brokerSelectorReady = true;
-            brokerSelectorCallbacks.forEach(cb => cb());
+            console.error("CashCue: failed to load broker accounts", err);
+            select.innerHTML = `<option>Error loading accounts</option>`;
         });
 
 });
-

@@ -40,5 +40,6 @@
 </div>
 
 <?php require_once __DIR__ . '/../modals/cash_modal.php'; ?>
+<script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/manage_cash.js"></script>
 <?php require_once __DIR__ . '/../footer.php'; ?>

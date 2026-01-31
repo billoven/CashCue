@@ -1,19 +1,20 @@
-console.log("manage_orders.js loaded VERSION OPTION A FIXED");
+console.log("manage_orders.js loaded - adapted for CashCueAppContext");
 
 /**
- * manage_orders.js
- * - Utilise header.js as single source of truth for broker_account_id
- * - Waits for header.js to be ready via waitForBrokerSelector()
- * - Reacts to broker changes via onBrokerAccountChange(callback)
- * - Preserves existing Add/Edit/Delete + flatpickr logic
+ * manage_orders.js – adapted to use CashCueAppContext
+ *
+ * Changes:
+ * - All broker_account_id accesses now go through CashCueAppContext.getBrokerAccountId()
+ * - Initial load waits for brokerAccountId via waitForBrokerAccount()
+ * - Reacts to broker changes using brokerAccountChanged event
+ * - Preserves all existing Add/Edit/Delete + flatpickr + pagination logic
  */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
 
-  // ============================================================
-  //   DOM ELEMENTS
-  // ============================================================
-
+  // ------------------------------------------------------------
+  // DOM ELEMENTS
+  // ------------------------------------------------------------
   const tableBody = document.querySelector("#ordersTable tbody");
   const modalEl = document.getElementById("orderModal");
   const modal = new bootstrap.Modal(modalEl);
@@ -32,24 +33,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let limit = 10;
   let offset = 0;
   let currentPage = 1;
-
   let tradeDatePicker = null;
 
-  // ------------------------------------------------------------
-  // Helper safe accessors (in case header.js is not present)
-  // ------------------------------------------------------------
-  function safeGetActiveBrokerAccountId() {
-    if (typeof window.getActiveBrokerAccountId === "function") {
-      return window.getActiveBrokerAccountId();
-    }
-    // fallback: "all" to avoid breaking
-    console.warn("getActiveBrokerAccountId() not available, defaulting to 'all'");
-    return "all";
-  }
-
-  // ------------------------------------------------------------
-  // FLATPICKR: init when modal shown (unchanged)
-  // ------------------------------------------------------------
+  // ============================================================
+  // FLATPICKR: init when modal shown
+  // ============================================================
   modalEl.addEventListener("shown.bs.modal", () => {
     if (!tradeDatePicker) {
       tradeDatePicker = flatpickr("#trade_date", {
@@ -63,19 +51,15 @@ document.addEventListener("DOMContentLoaded", () => {
         appendTo: modalEl
       });
 
-      console.log("Flatpickr initialized");
-
       const closeBtn = document.getElementById("closeCalendar");
       if (closeBtn) {
-        closeBtn.addEventListener("click", () => {
-          if (tradeDatePicker) tradeDatePicker.close();
-        });
+        closeBtn.addEventListener("click", () => tradeDatePicker.close());
       }
     }
   });
 
   // ============================================================
-  //   LOAD INSTRUMENTS
+  // LOAD INSTRUMENTS
   // ============================================================
   async function loadInstruments() {
     try {
@@ -100,25 +84,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
-  //   LOAD ORDERS
+  // LOAD ORDERS
   // ============================================================
   async function loadOrders() {
     try {
-      const broker_account_id = safeGetActiveBrokerAccountId();
-      console.log("DEBUG loadOrders(): broker_account_id =", broker_account_id);
+      const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
+      if (!broker_account_id) {
+        console.warn("Broker not ready, cannot load orders");
+        return;
+      }
 
       const url =
         `/cashcue/api/getOrders.php?broker_account_id=${broker_account_id}` +
         `&limit=${limit}&offset=${offset}`;
 
-      console.log("DEBUG Fetch URL =", url);
-
       const response = await fetch(url);
-      console.log("DEBUG Fetch response status =", response.status);
-
       const json = await response.json();
-      console.log("DEBUG JSON received =", json);
-
       if (json.status !== "success" && !json.success) {
         throw new Error(json.message || json.error);
       }
@@ -140,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
-  //   RENDER TABLE
+  // RENDER TABLE
   // ============================================================
   function renderTable(data) {
     if (!tableBody) return;
@@ -189,48 +170,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
-  //   ADD ORDER
+  // ADD / SAVE / CANCEL ORDER
   // ============================================================
   if (btnAdd) {
     btnAdd.addEventListener("click", (evt) => {
       evt.preventDefault();
-
       form.reset();
-
-      const orderIdEl = document.getElementById("order_id");
-      if (orderIdEl) orderIdEl.value = "";
-
-      if (tradeDatePicker && typeof tradeDatePicker.clear === "function") {
-        tradeDatePicker.clear();
-      }
-
+      document.getElementById("order_id").value = "";
+      tradeDatePicker?.clear();
       modalEl.querySelector(".modal-title").textContent = "➕ Add Order";
       modal.show();
-
       setTimeout(() => {
-        const firstInput = form.querySelector("input:not([type=hidden]), select, textarea");
-        if (firstInput) firstInput.focus();
+        form.querySelector("input:not([type=hidden]), select, textarea")?.focus();
       }, 150);
     });
   }
 
-  // ============================================================
-  //   SAVE ORDER (ADD ONLY)
-  // ============================================================
   if (btnSave) {
     btnSave.addEventListener("click", async (e) => {
       e.preventDefault();
-
       try {
-        const broker_account_id = safeGetActiveBrokerAccountId();
-
-        if (!broker_account_id || broker_account_id === "all") {
+        const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
+        if (!broker_account_id) {
           alert("Please select a broker account.");
           return;
         }
 
         const payload = {
-          broker_account_id: broker_account_id,
+          broker_account_id,
           instrument_id: document.getElementById("instrument_id").value,
           order_type: document.getElementById("order_type").value,
           quantity: document.getElementById("quantity").value,
@@ -240,11 +207,8 @@ document.addEventListener("DOMContentLoaded", () => {
           settled: document.getElementById("settled")?.checked ? 1 : 0
         };
 
-        // Validation minimale
         for (const k of ["instrument_id", "order_type", "quantity", "price", "trade_date"]) {
-          if (!payload[k]) {
-            throw new Error(`Missing field: ${k}`);
-          }
+          if (!payload[k]) throw new Error(`Missing field: ${k}`);
         }
 
         const res = await fetch("/cashcue/api/addOrder.php", {
@@ -254,12 +218,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         const json = await res.json();
+        if (!json.success) throw new Error(json.error || "Failed to add order");
 
-        if (!json.success) {
-          throw new Error(json.error || "Failed to add order");
-        }
-
-        // Succès
         modal.hide();
         window.refreshPageData();
 
@@ -269,7 +229,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-
 
   async function cancelOrder(orderId) {
     if (!confirm(
@@ -281,13 +240,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch(`/cashcue/api/cancelOrder.php?id=${orderId}`);
       const json = await res.json();
-
-      if (!json.success) {
-        throw new Error(json.error || "Cancel failed");
-      }
-
+      if (!json.success) throw new Error(json.error || "Cancel failed");
       loadOrders();
-
     } catch (err) {
       console.error("Error cancelling order:", err);
       alert(err.message || "Error cancelling order.");
@@ -295,80 +249,51 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
-  //   PAGINATION
+  // PAGINATION
   // ============================================================
-  if (prevBtn) {
-    prevBtn.addEventListener("click", () => {
-      if (offset === 0) return;
-      offset -= limit;
-      currentPage--;
-      loadOrders();
-    });
-  }
-  if (nextBtn) {
-    nextBtn.addEventListener("click", () => {
-      offset += limit;
-      currentPage++;
-      loadOrders();
-    });
-  }
+  prevBtn?.addEventListener("click", () => {
+    if (offset === 0) return;
+    offset -= limit;
+    currentPage--;
+    loadOrders();
+  });
+  nextBtn?.addEventListener("click", () => {
+    offset += limit;
+    currentPage++;
+    loadOrders();
+  });
 
   // ============================================================
-  //   EXPOSE refreshPageData() FOR header.js
+  // refreshPageData exposed for header.js / other modules
   // ============================================================
   window.refreshPageData = function () {
-    console.log("manage_orders.js: refreshPageData() called");
     offset = 0;
     currentPage = 1;
     loadOrders();
   };
 
   // ============================================================
-  //   REACT TO BROKER CHANGE (header.js)
-  //   Use the correct public API name: onBrokerAccountChange
+  // REACT TO BROKER CHANGE (via appContext)
   // ============================================================
-  if (typeof window.onBrokerAccountChange === "function") {
-    window.onBrokerAccountChange(() => {
-      console.log("manage_orders.js: broker account changed → reload orders");
-      window.refreshPageData();
-    });
-  } else if (typeof window.addEventListener === "function") {
-    // Backward-compatible fallback: listen for a custom event if header.js prefers dispatchEvent
-    window.addEventListener("brokerAccountChanged", () => {
-      console.log("manage_orders.js: brokerAccountChanged event received");
-      window.refreshPageData();
-    });
-  } else {
-    console.warn("manage_orders.js: no broker change hook available (onBrokerAccountChange missing).");
-  }
+  document.addEventListener("brokerAccountChanged", () => {
+    console.log("manage_orders.js: brokerAccountChanged event received");
+    window.refreshPageData();
+  });
 
   // ============================================================
-  //   INITIAL LOAD — wait for header.js to be ready if provided
+  // INITIAL LOAD — wait for brokerAccountId
   // ============================================================
-  if (typeof window.waitForBrokerSelector === "function") {
-    window.waitForBrokerSelector().then(() => {
-      loadInstruments();
-      window.refreshPageData();
-    });
-  } else {
-    // Immediate fallback
-    loadInstruments();
-    window.refreshPageData();
-  }
+  await window.CashCueAppContext.waitForBrokerAccount();
+  loadInstruments();
+  window.refreshPageData();
 
   // ============================================================
   // Cancel order handler (event delegation)
   // ============================================================
   document.addEventListener("click", (e) => {
     const el = e.target.closest(".cancel-action");
-    if (!el) return;
-
-    // Order already cancelled → do nothing
-    if (el.classList.contains("disabled")) {
-      return;
-    }
-
-    const orderId = el.dataset.id;
-    cancelOrder(orderId);
+    if (!el || el.classList.contains("disabled")) return;
+    cancelOrder(el.dataset.id);
   });
+
 });

@@ -112,6 +112,6 @@
     </div>
   </div>
 </div>
-
+<script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/manage_orders.js"></script>
 <?php include __DIR__ . '/../footer.php'; ?>
