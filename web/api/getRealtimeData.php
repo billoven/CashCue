@@ -24,7 +24,8 @@ try {
             rp.price,
             rp.currency,
             rp.captured_at,
-            dp.pct_change
+            dp.pct_change,
+            i.status
         FROM instrument i
         JOIN realtime_price rp
             ON rp.id = (
@@ -39,10 +40,15 @@ try {
            AND dp.date = CURDATE()
     ";
 
+    // Apply instrument status filter (UI-relevant instruments only)
+    $sql .= "
+        WHERE i.status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED')
+    ";
+
     // Apply filter for specific broker account
     if (!$isAll) {
         $sql .= "
-            WHERE i.id IN (
+            AND i.id IN (
                 SELECT DISTINCT instrument_id
                 FROM order_transaction
                 WHERE broker_account_id = :broker_account_id
@@ -50,6 +56,7 @@ try {
         ";
     }
 
+    // Order by instrument label
     $sql .= " ORDER BY i.label ASC";
 
     $stmt = $pdo->prepare($sql);

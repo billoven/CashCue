@@ -59,29 +59,40 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // ============================================================
-  // LOAD INSTRUMENTS
+  // LOAD INSTRUMENTS — only ACTIVE instruments are orderable
   // ============================================================
   async function loadInstruments() {
-    try {
-      const response = await fetch("/cashcue/api/getInstruments.php");
-      const json = await response.json();
-      if (json.status !== "success") throw new Error(json.message);
+      try {
+          const response = await fetch("/cashcue/api/getInstruments.php");
+          const json = await response.json();
 
-      instruments = json.data;
-      const select = document.getElementById("instrument_id");
-      if (!select) return;
-      select.innerHTML = '<option value="">Select instrument...</option>';
+          if (json.status !== "success") throw new Error(json.message);
 
-      instruments.forEach(i => {
-        const opt = document.createElement("option");
-        opt.value = i.id;
-        opt.textContent = `${i.symbol} - ${i.label}`;
-        select.appendChild(opt);
-      });
-    } catch (err) {
-      console.error("Error loading instruments:", err);
-    }
+          instruments = json.data;
+
+          const select = document.getElementById("instrument_id");
+          if (!select) return;
+
+          select.innerHTML = '<option value="">Select instrument...</option>';
+
+          // -------------------------------------------------------
+          // Filter instruments: only ACTIVE are orderable
+          // -------------------------------------------------------
+          instruments
+              .filter(i => i.status === "ACTIVE")
+              .forEach(i => {
+                  const opt = document.createElement("option");
+                  opt.value = i.id;
+                  opt.textContent = `${i.symbol} - ${i.label}`;
+                  select.appendChild(opt);
+              });
+
+      } catch (err) {
+          console.error("Error loading instruments:", err);
+          // Optional: show message in UI if needed
+      }
   }
+
 
   // ============================================================
   // LOAD ORDERS
@@ -138,7 +149,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       tr.innerHTML = `
         <td>${o.symbol}</td>
         <td>${o.label}</td>
-        <td>${o.broker_full_name || "-"}</td>
         <td>${o.order_type}</td>
         <td>${o.quantity}</td>
         <td>${parseFloat(o.price).toFixed(4)}</td>

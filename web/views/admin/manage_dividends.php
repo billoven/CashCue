@@ -46,10 +46,9 @@
                 <tr>
                     <th>Payment Date</th>
                     <th>Instrument</th>
-                    <th>Broker</th>
-                    <th class="text-end">Gross</th>
-                    <th class="text-end">Taxes</th>
-                    <th class="text-end">Net Received</th>
+                    <th>Gross</th>
+                    <th>Taxes</th>
+                    <th>Net Received</th>
                     <th>Currency</th>
                     <th>Status</th>
                     <th>Cancelled at</th>
@@ -94,17 +93,6 @@
 
             <!-- Hidden ID (edit only) -->
             <input type="hidden" id="dividend_id" name="id">
-
-            <div class="mb-3">
-                <label class="form-label">Broker</label>
-                <select
-                    id="broker_account_id"
-                    name="broker_account_id"
-                    class="form-select"
-                    required
-                ></select>
-            </div>
-
             <div class="mb-3">
                 <label class="form-label">Instrument</label>
                 <select

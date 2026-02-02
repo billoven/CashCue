@@ -27,7 +27,6 @@
           <tr>
             <th>Symbol</th>
             <th>Label</th>
-            <th>Broker</th>
             <th>Type</th>
             <th>Quantity</th>
             <th>Price (€)</th>

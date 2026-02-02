@@ -31,11 +31,9 @@ try {
             ) AS total,
             ot.trade_date,
             ot.status,
-            ot.cancelled_at,
-            CONCAT(b.name, '_', b.account_type) AS broker_full_name
+            ot.cancelled_at
         FROM order_transaction ot
         JOIN instrument i ON i.id = ot.instrument_id
-        JOIN broker_account b ON ot.broker_account_id = b.id
     ";
 
     // Add broker filter if needed

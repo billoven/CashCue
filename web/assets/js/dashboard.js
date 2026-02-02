@@ -193,6 +193,7 @@ function loadRealtimePrices(accountId) {
  * - currency        (string)
  * - pct_change      (number|string|null)
  * - captured_at     (datetime string)
+ * - status          (string) 
  *
  * @param {Array<Object>} data
  *   Array of realtime instrument price objects returned by the backend.
@@ -244,6 +245,7 @@ function renderRealtimePricesTable(data) {
         </div>
         </th>
         <th>Updated</th>
+        <th>Status</th>
       </tr>
     </thead>
     <tbody>
@@ -262,6 +264,7 @@ function renderRealtimePricesTable(data) {
             <td>${parseFloat(row.price).toFixed(3)} ${row.currency}</td>
             <td class="${pctClass}">${pctFormatted}</td>
             <td>${row.captured_at}</td>
+            <td>${row.status}</td>
           </tr>`;
       }).join("")}
     </tbody>
@@ -320,11 +323,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         reloadDashboardData();
     });
 });
-
-
-
-
-
 
 /**
  * Load recent orders
