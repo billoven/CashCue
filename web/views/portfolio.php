@@ -23,31 +23,35 @@
       <div id="portfolioHistoryChart" style="height: 400px;"></div>
     </div>
   </div>
-
   <!-- 🔹 Current Holdings -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white fw-bold">Current Holdings</div>
     <div class="card-body table-responsive">
-      <table class="table table-striped table-hover align-middle" id="holdingsTable">
-        <thead class="table-dark">
-          <tr>
-            <th>Symbol</th>
-            <th>Label</th>
-            <th>Quantity</th>
-            <th>Avg. Buy Price (€)</th>
-            <th>Last Price (€)</th>
-            <th>Value (€)</th>
-            <th>Unrealized P/L (€)</th>
-            <th>Unrealized P/L (%)</th>
-          </tr>
-        </thead>
-        <tbody id="holdingsTableBody"><!-- JS populates --></tbody>
-      </table>
+
+      <!-- CashCueTable container -->
+      <div id="holdingsTableContainer">
+        <table class="table table-striped table-hover align-middle" id="holdingsTable">
+          <thead class="table-dark">
+            <tr>
+              <th>Symbol</th>
+              <th>Label</th>
+              <th>Quantity</th>
+              <th>Avg. Buy Price (€)</th>
+              <th>Last Price (€)</th>
+              <th>Value (€)</th>
+              <th>Unrealized P/L (€)</th>
+              <th>Unrealized P/L (%)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/portfolio.js"></script>
 

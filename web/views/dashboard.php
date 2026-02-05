@@ -76,61 +76,7 @@
           Realtime Prices
         </div>
         <div class="card-body table-responsive" id="realtimeTableContainer">
-          <table class="table table-striped table-hover align-middle">
-            <thead class="table-dark">
-              <tr>
-                <th class="sortable"
-                    data-sort-key="symbol"
-                    data-sort-type="string">
-                  <div class="th-content">
-                    <span class="th-label">Symbol</span>
-                    <span class="sort-icons">
-                      <i class="bi bi-caret-up-fill"></i>
-                      <i class="bi bi-caret-down-fill"></i>
-                    </span>
-                  </div>
-                </th>
-                <th class="sortable"
-                    data-sort-key="label"
-                    data-sort-type="string">
-                  <div class="th-content">
-                    <span class="th-label">Label</span>
-                    <span class="sort-icons">
-                      <i class="bi bi-caret-up-fill"></i>
-                      <i class="bi bi-caret-down-fill"></i>
-                    </span>
-                  </div>
-                </th>
-                <th class="sortable text-end"
-                    data-sort-key="price"
-                    data-sort-type="number">
-                  <div class="th-content justify-end">
-                    <span class="th-label">Price</span>
-                    <span class="sort-icons">
-                      <i class="bi bi-caret-up-fill"></i>
-                      <i class="bi bi-caret-down-fill"></i>
-                    </span>
-                  </div>
-                </th>
-                <th>Currency</th>
-                <th class="sortable text-end"
-                    data-sort-key="change_pct"
-                    data-sort-type="number">
-                  <div class="th-content justify-end">
-                    <span class="th-label">% Change</span>
-                    <span class="sort-icons">
-                      <i class="bi bi-caret-up-fill"></i>
-                      <i class="bi bi-caret-down-fill"></i>
-                    </span>
-                  </div>
-                </th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody id="realtimeTableBody">
-              <!-- JS populates -->
-            </tbody>
-          </table>
+          <!-- CashCueTable will create the <table> and populate rows here -->
         </div>
       </div>
     </div>
@@ -180,6 +126,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/dashboard.js"></script>
 

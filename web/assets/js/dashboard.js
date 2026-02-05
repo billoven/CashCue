@@ -1,348 +1,177 @@
-// assets/js/dashboard.js
+/// assets/js/dashboard.js
 
 console.log("dashboard.js loaded");
 
 // ---------------------------------------------------
-// Prepare Variables for Realtime prices tables sorting
+// Realtime Prices Table (CashCueTable)
 // ---------------------------------------------------
-let realtimePrices = [];
-let currentSort = {
-  key: null,
-  type: null,
-  direction: 'asc'
-};
+let realtimeTable = null;
 
 /**
- * Initialize sorting for the Realtime Prices table using event delegation.
- *
- * Listens for click events on the table container and reacts
- * only when a sortable table header (<th.sortable>) is clicked.
- *
- * This approach is robust against DOM re-rendering and works
- * correctly inside Bootstrap .table-responsive containers.
+ * Initialize Realtime Prices table (once).
+ * Sorting and pagination are delegated to CashCueTable.
  */
-function initRealtimeTableSorting() {
-  const container = document.getElementById("realtimeTableContainer");
+function initRealtimePricesTable() {
+  realtimeTable = new CashCueTable({
+    containerId: "realtimeTableContainer",
+    searchInput: "#searchInstruments",  // link to search input box
+    searchFields: ["symbol", "label"],   // <-- added for live search on these columns
+    columns: [
+      {
+        key: "symbol",
+        label: "Symbol",
+        sortable: true,
+        type: "string"
+      },
+      {
+        key: "label",
+        label: "Label",
+        sortable: true,
+        type: "string"
+      },
+      {
+        key: "price",
+        label: "Price",
+        sortable: true,
+        type: "number",
+        render: row =>
+          `${parseFloat(row.price).toFixed(3)} ${row.currency}`
+      },
+      {
+        key: "pct_change",
+        label: "Change (%)",
+        sortable: true,
+        type: "number",
+        render: row => {
+          const v = parseFloat(row.pct_change);
+          if (isNaN(v)) return "-";
+          return `<span class="${v >= 0 ? "text-success" : "text-danger"}">${v.toFixed(2)}%</span>`;
+        }
+      },
+      {
+        key: "captured_at",
+        label: "Updated",
+        sortable: true,
+        type: "date"
+      },
+      {
+        key: "status",
+        label: "Status",
+        sortable: false,
+        html: true,
+        render: row => {
+          switch (row.status) {
+            case "ACTIVE":
+              return '<span class="badge bg-success">ACTIVE</span>';
+            case "INACTIVE":
+              return '<span class="badge bg-secondary">INACTIVE</span>';
+            case "SUSPENDED":
+              return '<span class="badge bg-warning text-dark">SUSPENDED</span>';
+            default:
+              return '<span class="badge bg-light text-dark">UNKNOWN</span>';
+          }
+        }
+      }
+    ],
 
-  if (!container) return;
+    pagination: {
+      enabled: true,
+      pageSize: 15
+    },
 
-  container.onclick = (event) => {
-    const th = event.target.closest("th.sortable");
-
-    if (!th) return;
-
-    console.log("🔥 SORT CLICK on", th.dataset.sortKey);
-
-    const key = th.dataset.sortKey;
-    const type = th.dataset.sortType;
-
-    if (!key) return;
-
-    // Toggle sort direction
-    if (currentSort.key === key) {
-      currentSort.direction = currentSort.direction === "asc" ? "desc" : "asc";
-    } else {
-      currentSort.key = key;
-      currentSort.type = type;
-      currentSort.direction = "asc";
+    onRowClick: row => {
+      loadInstrumentChart(row.instrument_id, row.label);
     }
-
-    // Reset icons
-    container
-      .querySelectorAll("th.sortable")
-      .forEach(h => h.classList.remove("sorted-asc", "sorted-desc"));
-
-    // Apply active sort class
-    th.classList.add(`sorted-${currentSort.direction}`);
-
-    // Sort in memory
-    realtimePrices = sortRealtimePrices(
-      realtimePrices,
-      currentSort.key,
-      currentSort.type,
-      currentSort.direction
-    );
-
-    // Re-render table
-    renderRealtimePricesTable(realtimePrices);
-  };
-}
-
-
-/**
- * Sort realtime prices dataset in memory.
- *
- * @param {Array<Object>} data
- * @param {string} key
- * @param {string} type  "string" | "number"
- * @param {string} direction "asc" | "desc"
- * @returns {Array<Object>} sorted copy of data
- */
-function sortRealtimePrices(data, key, type, direction) {
-  return [...data].sort((a, b) => {
-    let v1 = a[key];
-    let v2 = b[key];
-
-    if (type === "number") {
-      v1 = parseFloat(v1);
-      v2 = parseFloat(v2);
-      v1 = isNaN(v1) ? -Infinity : v1;
-      v2 = isNaN(v2) ? -Infinity : v2;
-    } else {
-      v1 = v1?.toString().toLowerCase() || "";
-      v2 = v2?.toString().toLowerCase() || "";
-    }
-
-    if (v1 < v2) return direction === "asc" ? -1 : 1;
-    if (v1 > v2) return direction === "asc" ? 1 : -1;
-    return 0;
   });
 }
 
 /**
- * Load realtime instrument prices (with full debug).
- *
- * This function is responsible for:
- * - Fetching realtime prices from the backend API
- * - Performing basic response validation and error handling
- * - Storing the received data as the canonical in-memory dataset
- * - Delegating all HTML rendering to renderRealtimePricesTable()
- *
- * It does NOT build or manipulate table markup directly.
+ * Load realtime instrument prices.
+ * Fetches data and delegates rendering to CashCueTable.
  */
 function loadRealtimePrices(accountId) {
   const container = document.getElementById("realtimeTableContainer");
-  if (!container) {
-    console.warn("Realtime container not found in DOM");
-    return;
-  }
-
-  console.log("▶ loadRealtimePrices() called with accountId =", accountId);
+  if (!container || !realtimeTable) return;
 
   container.innerHTML = "<p class='text-muted'>Loading realtime prices...</p>";
 
-  const url = `/cashcue/api/getRealtimeData.php?broker_account_id=${accountId}`;
-  console.log("▶ Fetching URL:", url);
-
-  fetch(url)
-    .then(resp => {
-      console.log("▶ Raw fetch response:", resp);
-      return resp.json();
-    })
-    .then(data => {
-      console.log("▶ Parsed JSON received from getRealtimeData.php:", data);
-
-      if (!data) {
-        console.error("❌ ERROR: No JSON data received from backend!");
-        container.innerHTML = "<p class='text-danger'>Empty response from server.</p>";
+  fetch(`/cashcue/api/getRealtimeData.php?broker_account_id=${accountId}`)
+    .then(resp => resp.json())
+    .then(json => {
+      if (!json || json.status !== "success") {
+        container.innerHTML =
+          `<p class="text-danger">${json?.message || "Server error"}</p>`;
         return;
       }
 
-      if (data.status !== "success") {
-        console.error("❌ Backend reported error:", data.message);
-        container.innerHTML = `<p class='text-danger'>Server error: ${data.message}</p>`;
+      if (!json.data || json.data.length === 0) {
+        container.innerHTML =
+          "<p class='text-muted'>No realtime data available.</p>";
         return;
       }
 
-      if (!data.data || data.data.length === 0) {
-        console.warn("⚠ No realtime data returned.");
-        container.innerHTML = "<p class='text-muted'>No realtime data available.</p>";
-        return;
-      }
-
-      console.log(`✔ ${data.data.length} realtime entries received.`);
-
-      // --------------------------------------------------
-      // Store canonical realtime dataset in memory
-      // --------------------------------------------------
-      realtimePrices = data.data;
-      renderRealtimePricesTable(realtimePrices);
-      initRealtimeTableSorting(); // ✅ table EXISTE maintenant
-
-      // --------------------------------------------------
-      // Delegate rendering to the dedicated render function
-      // --------------------------------------------------
-      renderRealtimePricesTable(realtimePrices);
-
-      console.log("✔ Realtime prices fully loaded and rendered.");
+      realtimeTable.setData(json.data);
     })
     .catch(err => {
-      console.error("❌ Exception during fetch:", err);
+      console.error("Realtime prices load error:", err);
       container.innerHTML =
-        `<p class="text-danger">Error loading realtime data: ${err}</p>`;
+        "<p class='text-danger'>Failed to load realtime prices.</p>";
     });
 }
-
-/**
- * Render the Realtime Prices table in the dashboard.
- *
- * This function is responsible ONLY for rendering the HTML table
- * from an already-loaded dataset. It does NOT perform any data fetching.
- *
- * Responsibilities:
- * - Build the realtime prices table markup
- * - Safely format numeric values (price, percentage change)
- * - Apply visual indicators (green/red) for positive/negative changes
- * - Attach click handlers on instrument rows to load the price chart
- *
- * Data contract (expected fields per row):
- * - instrument_id   (number)
- * - symbol          (string)
- * - label           (string)
- * - price           (number|string)
- * - currency        (string)
- * - pct_change      (number|string|null)
- * - captured_at     (datetime string)
- * - status          (string) 
- *
- * @param {Array<Object>} data
- *   Array of realtime instrument price objects returned by the backend.
- */
-function renderRealtimePricesTable(data) {
-  const container = document.getElementById("realtimeTableContainer");
-  if (!container) return;
-
-  const table = document.createElement("table");
-  table.className = "table table-striped table-hover align-middle";
-
-  table.innerHTML = `
-    <thead class="table-dark">
-      <tr>
-        <th class="sortable ${currentSort.key === 'symbol' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="symbol" data-sort-type="string">
-        <div class="th-content">
-          <span class="th-label">Symbol</span>
-          <span class="sort-icons">
-            <i class="bi bi-caret-up-fill"></i>
-            <i class="bi bi-caret-down-fill"></i>
-          </span>
-        </div>
-        </th>
-        <th class="sortable ${currentSort.key === 'label' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="label" data-sort-type="string">
-        <div class="th-content">
-          <span class="th-label">Label</span>
-          <span class="sort-icons">
-            <i class="bi bi-caret-up-fill"></i>
-            <i class="bi bi-caret-down-fill"></i>
-          </span>
-        </div>
-        </th>
-        <th class="sortable ${currentSort.key === 'price' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="price" data-sort-type="number">
-        <div class="th-content">
-          <span class="th-label">Price</span>
-          <span class="sort-icons">
-            <i class="bi bi-caret-up-fill"></i>
-            <i class="bi bi-caret-down-fill"></i>
-          </span>
-        </div>
-        </th>
-        <th class="sortable ${currentSort.key === 'pct_change' ? 'sorted-' + currentSort.direction : ''}" data-sort-key="pct_change" data-sort-type="number">
-        <div class="th-content">
-          <span class="th-label">Change (%)</span>
-          <span class="sort-icons">
-            <i class="bi bi-caret-up-fill"></i>
-            <i class="bi bi-caret-down-fill"></i>
-          </span>
-        </div>
-        </th>
-        <th>Updated</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${data.map(row => {
-        let pct = parseFloat(row.pct_change);
-        const hasPct = !isNaN(pct);
-        const pctFormatted = hasPct ? pct.toFixed(2) + '%' : '-';
-        const pctClass = hasPct
-          ? (pct >= 0 ? 'text-success' : 'text-danger')
-          : '';
-
-        return `
-          <tr class="instrument-row" data-id="${row.instrument_id}" style="cursor:pointer;">
-            <td>${row.symbol}</td>
-            <td>${row.label}</td>
-            <td>${parseFloat(row.price).toFixed(3)} ${row.currency}</td>
-            <td class="${pctClass}">${pctFormatted}</td>
-            <td>${row.captured_at}</td>
-            <td>${row.status}</td>
-          </tr>`;
-      }).join("")}
-    </tbody>
-  `;
-
-  container.innerHTML = "";
-  container.appendChild(table);
-
-  // Click on row → show chart
-  document.querySelectorAll(".instrument-row").forEach(row => {
-    row.addEventListener("click", () => {
-      const id = row.dataset.id;
-      const name = row.children[1].textContent;
-      loadInstrumentChart(id, name);
-    });
-  });
-}
-
 
 // ---------------------------------------------------
-//  Helpers
+// Helpers
 // ---------------------------------------------------
 function reloadDashboardData() {
-    const accountId = window.CashCueAppContext.getBrokerAccountId();
+  const accountId = window.CashCueAppContext.getBrokerAccountId();
 
-    if (!accountId) {
-        console.warn("Dashboard: brokerAccountId not ready, cannot reload data");
-        return;
-    }
+  if (!accountId) {
+    console.warn("Dashboard: brokerAccountId not ready");
+    return;
+  }
 
-    console.log("Dashboard: reload with accountId =", accountId);
+  console.log("Dashboard reload with accountId =", accountId);
 
-    loadPortfolioSummary(accountId);
-    loadPortfolioHistory(accountId);
-    loadRealtimePrices(accountId);
-    loadLastOrders(accountId);
+  loadPortfolioSummary(accountId);
+  loadPortfolioHistory(accountId);
+  loadRealtimePrices(accountId);
+  loadLastOrders(accountId);
 }
 
 // ---------------------------------------------------
-//  DOM Ready
+// DOM Ready
 // ---------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
-    console.log("dashboard.js: DOM ready");
+  console.log("dashboard.js: DOM ready");
 
-    // Attendre que CashCueAppContext ait le brokerAccountId
-    await window.CashCueAppContext.waitForBrokerAccount();
-    console.log("dashboard.js: brokerAccountId is ready →", window.CashCueAppContext.getBrokerAccountId());
+  initRealtimePricesTable();
 
-    // Chargement initial du dashboard
+  await window.CashCueAppContext.waitForBrokerAccount();
+  reloadDashboardData();
+
+  document.addEventListener("brokerAccountChanged", () => {
     reloadDashboardData();
-
-    // Recharger automatiquement quand le broker change
-    document.addEventListener("brokerAccountChanged", (evt) => {
-        const newId = evt.detail.brokerAccountId;
-        console.log("dashboard.js: broker changed →", newId);
-        reloadDashboardData();
-    });
+  });
 });
 
-/**
- * Load recent orders
- */
-// ---- Load Last Orders ----
+// ---------------------------------------------------
+// Last Orders
+// ---------------------------------------------------
 async function loadLastOrders(accountId) {
   try {
     const res = await fetch(`/cashcue/api/getOrders.php?broker_account_id=${accountId}`);
     const json = await res.json();
 
     if (json.status !== "success") throw new Error(json.message);
+
     const tableBody = document.getElementById("ordersTableBody");
-
-    console.log("LOAD LAST ORDERS with accountId:", accountId, json);
-
     if (!tableBody) return;
+
     tableBody.innerHTML = "";
 
     if (!json.data || json.data.length === 0) {
-      tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No recent orders</td></tr>`;
+      tableBody.innerHTML =
+        `<tr><td colspan="7" class="text-center text-muted">No recent orders</td></tr>`;
       return;
     }
 
@@ -362,30 +191,26 @@ async function loadLastOrders(accountId) {
     });
   } catch (err) {
     console.error("Error loading last orders:", err);
-    const tableBody = document.getElementById("lastOrdersBody");
-    if (tableBody)
-      tableBody.innerHTML = `<tr><td colspan="7" class="text-danger text-center">Failed to load last orders</td></tr>`;
   }
 }
 
+// ---------------------------------------------------
+// Instrument Chart
+// ---------------------------------------------------
 function loadInstrumentChart(instrument_id, label) {
-  console.log("Loading chart for instrument:", instrument_id);
-
   fetch(`/cashcue/api/getInstrumentHistory.php?instrument_id=${instrument_id}`)
-    .then(response => response.json())
+    .then(r => r.json())
     .then(json => {
-      const chartCard = document.getElementById('instrumentChartCard');
-      const chartTitle = document.getElementById('instrumentChartTitle');
-      const chartDiv = document.getElementById('instrumentChart');
+      const chartCard = document.getElementById("instrumentChartCard");
+      const chartTitle = document.getElementById("instrumentChartTitle");
+      const chartDiv = document.getElementById("instrumentChart");
 
-      // Rendre visible AVANT initialisation du chart
-      chartCard.style.display = 'block';
+      chartCard.style.display = "block";
       chartTitle.textContent = `${label} — Intraday Price`;
 
       if (!json.data || json.data.length === 0) {
-        const chart = echarts.init(chartDiv);
-        chart.setOption({
-          title: { text: `No intraday data for ${label}`, left: 'center' }
+        echarts.init(chartDiv).setOption({
+          title: { text: `No intraday data for ${label}`, left: "center" }
         });
         return;
       }
@@ -393,171 +218,84 @@ function loadInstrumentChart(instrument_id, label) {
       const times = json.data.map(p => p.captured_at);
       const prices = json.data.map(p => parseFloat(p.price));
 
-      console.log("Instrument history data prices ", prices);
-
-      // IMPORTANT : laisser le navigateur recalculer la taille
       setTimeout(() => {
-        const chart = echarts.init(chartDiv);
-
-        chart.setOption({
-          tooltip: { trigger: 'axis' },
-          xAxis: { type: 'category', data: times },
-          yAxis: { type: 'value', scale: true },
-          series: [{
-            data: prices,
-            type: 'line',
-            smooth: true
-          }]
+        echarts.init(chartDiv).setOption({
+          tooltip: { trigger: "axis" },
+          xAxis: { type: "category", data: times },
+          yAxis: { type: "value", scale: true },
+          series: [{ data: prices, type: "line", smooth: true }]
         });
       }, 50);
     })
-    .catch(err => console.error('Chart load error:', err));
+    .catch(err => console.error("Chart load error:", err));
 }
 
-
-// ---- Portfolio Summary ----
+// ---------------------------------------------------
+// Portfolio Summary
+// ---------------------------------------------------
 async function loadPortfolioSummary(accountId) {
   try {
     const res = await fetch(`/cashcue/api/getPortfolioSummary.php?range=10&broker_account_id=${accountId}`);
     const json = await res.json();
 
-    if (!json || json.status !== 'success') {
-      console.error('Summary API failed:', json && json.message ? json.message : 'no response');
-      return;
-    }
+    if (!json || json.status !== "success") return;
 
     const d = json.data;
+    const formatEUR = v =>
+      new Intl.NumberFormat("fr-FR", {
+        style: "currency",
+        currency: "EUR",
+        minimumFractionDigits: 2
+      }).format(Number(v || 0));
 
-    // Defensive parse helpers
-    const toNum = v => {
-      if (v === null || v === undefined || v === '') return 0;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    // Format as Euro
-    const formatEUR = v => new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(toNum(v));
-
-    // Populate DOM (guarding for missing elements)
-    const setText = (id, text) => {
+    const setText = (id, val) => {
       const el = document.getElementById(id);
-      if (el) el.textContent = text;
+      if (el) el.textContent = val;
     };
 
-    setText('totalValue', formatEUR(d.total_value));
-    setText('investedAmount', formatEUR(d.invested_amount));
-    setText('unrealizedPL', formatEUR(d.unrealized_pl));
-    setText('realizedPL', formatEUR(d.realized_pl));
-    setText('dividendsGross', formatEUR(d.dividends_gross));
-    setText('dividendsNet', formatEUR(d.dividends_net));
-    setText('cashBalance', formatEUR(d.cash_balance));
-
+    setText("totalValue", formatEUR(d.total_value));
+    setText("investedAmount", formatEUR(d.invested_amount));
+    setText("unrealizedPL", formatEUR(d.unrealized_pl));
+    setText("realizedPL", formatEUR(d.realized_pl));
+    setText("dividendsGross", formatEUR(d.dividends_gross));
+    setText("dividendsNet", formatEUR(d.dividends_net));
+    setText("cashBalance", formatEUR(d.cash_balance));
   } catch (err) {
-    console.error('Summary fetch error:', err);
+    console.error("Summary fetch error:", err);
   }
 }
 
-
-
-// ---- Portfolio Value Over Time ----
+// ---------------------------------------------------
+// Portfolio History
+// ---------------------------------------------------
 async function loadPortfolioHistory(accountId) {
   try {
     const res = await fetch(`/cashcue/api/getPortfolioHistory.php?broker_account_id=${accountId}`);
     const json = await res.json();
 
-    if (json.status !== "success" || !json.data?.length) {
-      console.warn("No portfolio history found.");
-      return;
-    }
-
-    const dates = json.data.map(d => d.date);
-    const invested = json.data.map(d => parseFloat(d.invested || 0));
-    const portfolio = json.data.map(d => parseFloat(d.portfolio || 0));
+    if (json.status !== "success" || !json.data?.length) return;
 
     const chartDom = document.getElementById("portfolioChart");
-    if (!chartDom) {
-      console.log("getElementById portfolioChart not found!");  
-      return;
-    }
+    if (!chartDom) return;
+
+    const dates = json.data.map(d => d.date);
+    const invested = json.data.map(d => +d.invested || 0);
+    const portfolio = json.data.map(d => +d.portfolio || 0);
+
     const chart = echarts.init(chartDom);
-
-    const option = {
-      title: {
-        text: "Portfolio Value Over Time",
-        left: "center",
-        textStyle: { fontSize: 16, fontWeight: "bold" }
-      },
-      tooltip: {
-        trigger: "axis",
-        formatter: params => {
-          let html = `<strong>${params[0].axisValue}</strong><br/>`;
-          params.forEach(p => {
-            const value = p.data?.toLocaleString("fr-FR", {
-              style: "currency",
-              currency: "EUR"
-            });
-            html += `${p.marker} ${p.seriesName}: <b>${value}</b><br/>`;
-          });
-          return html;
-        },
-        backgroundColor: "#fff",
-        borderColor: "#ccc",
-        borderWidth: 1,
-        textStyle: { color: "#000" }
-      },
-      legend: {
-        bottom: 0,
-        data: ["Invested (€)", "Portfolio (€)"]
-      },
-      grid: { top: 60, left: 70, right: 30, bottom: 60 },
-      xAxis: {
-        type: "category",
-        data: dates,
-        axisLabel: { rotate: 30 }
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: {
-          formatter: val =>
-            val.toLocaleString("fr-FR", {
-              style: "currency",
-              currency: "EUR",
-              maximumFractionDigits: 0
-            })
-        },
-        name: "Value (€)"
-      },
+    chart.setOption({
+      tooltip: { trigger: "axis" },
+      legend: { bottom: 0 },
+      xAxis: { type: "category", data: dates },
+      yAxis: { type: "value" },
       series: [
-        {
-          name: "Invested (€)",
-          type: "line",
-          data: invested,
-          smooth: true,
-          symbol: "circle",
-          itemStyle: { color: "#007bff" },
-          lineStyle: { width: 2 }
-        },
-        {
-          name: "Portfolio (€)",
-          type: "line",
-          data: portfolio,
-          smooth: true,
-          symbol: "circle",
-          itemStyle: { color: "#28a745" },
-          lineStyle: { width: 2 }
-        }
+        { name: "Invested (€)", data: invested, type: "line", smooth: true },
+        { name: "Portfolio (€)", data: portfolio, type: "line", smooth: true }
       ]
-    };
+    });
 
-    chart.setOption(option);
     window.addEventListener("resize", chart.resize);
   } catch (err) {
     console.error("Portfolio history fetch error:", err);
   }
 }
-

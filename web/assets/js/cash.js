@@ -2,18 +2,38 @@
 // Cash Account Overview
 // assets/js/cash.js
 // ============================================================
+//
+// Responsibilities:
+//  - Display cash summary (balance, inflows, outflows)
+//  - Display cash transactions table (read-only)
+//  - Support date range filtering
+//  - React to broker account changes
+//
+// Architecture:
+//  - Uses CashCueAppContext for broker resolution
+//  - Uses CashCueTable for sortable, consistent tables
+//
+// API endpoints:
+//  - getCashSummary.php
+//  - getCashTransactions.php
+// ============================================================
 
 console.log("cash.js loaded");
 
 // ------------------------------------------------------------
-// HELPERS
+// State
+// ------------------------------------------------------------
+
+let cashTable = null;
+
+// ------------------------------------------------------------
+// Helpers
 // ------------------------------------------------------------
 
 /**
- * Format number to French locale with 2 decimals
+ * Format number using French locale with 2 decimals
  */
 function formatAmount(value) {
-  
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return n.toLocaleString("fr-FR", {
@@ -24,10 +44,9 @@ function formatAmount(value) {
 
 /**
  * Compute date range object from selector value
- * Returns object usable as URLSearchParams
+ * Returns object suitable for URLSearchParams
  */
 function computeDateRange(value) {
-  
   if (value === "all") return {};
 
   const days = parseInt(value, 10);
@@ -44,16 +63,66 @@ function computeDateRange(value) {
 }
 
 // ------------------------------------------------------------
-// API LOADERS
+// CashCueTable initialization
+// ------------------------------------------------------------
+
+function initCashTable() {
+cashTable = new CashCueTable({
+  containerId: "cashTableContainer",
+  emptyMessage: "No cash movements",
+    columns: [
+      {
+        key: "date",
+        label: "Date",
+        sortable: true
+      },
+      {
+        key: "type",
+        label: "Type",
+        sortable: true
+      },
+      {
+        key: "amount",
+        label: "Amount (€)",
+        sortable: true,
+        align: "end",
+        type: "number",
+        key: "amount",
+        label: "Amount (€)",
+        sortable: true,
+        align: "end",
+        render: row => parseFloat(row.amount).toFixed(4)
+      },
+      {
+        key: "reference_id",
+        label: "Reference",
+        sortable: false,
+        render: row => row.reference_id ?? "—"
+      },
+      {
+        key: "comment",
+        label: "Comment",
+        sortable: false,
+        render: row => row.comment ?? ""
+      }
+    ]
+  });
+}
+
+// ------------------------------------------------------------
+// API loaders
 // ------------------------------------------------------------
 
 /**
  * Load cash summary (balance, inflows, outflows)
  */
 async function loadCashSummary(brokerAccountId) {
-  
-  const res = await fetch(`/cashcue/api/getCashSummary.php?broker_account_id=${brokerAccountId}`);
-  if (!res.ok) throw new Error("Failed to load cash summary");
+  const res = await fetch(
+    `/cashcue/api/getCashSummary.php?broker_account_id=${brokerAccountId}`
+  );
+  if (!res.ok) {
+    throw new Error("Failed to load cash summary");
+  }
 
   const json = await res.json();
 
@@ -66,93 +135,47 @@ async function loadCashSummary(brokerAccountId) {
 }
 
 /**
- * Load cash transactions table
+ * Load cash transactions into CashCueTable
  */
 async function loadCashTransactions(brokerAccountId, range) {
-  
-  const tbody = document.getElementById("cashTransactionsBody");
-  if (!tbody) return;
-
-  // Show temporary loading row
-  tbody.innerHTML = `
-    <tr>
-      <td colspan="5" class="text-center text-muted">Loading…</td>
-    </tr>
-  `;
-
   const params = new URLSearchParams({
     broker_account_id: brokerAccountId,
     ...range
   });
 
-  const res = await fetch(`/cashcue/api/getCashTransactions.php?${params.toString()}`);
-  if (!res.ok) throw new Error("Failed to load cash transactions");
+  const res = await fetch(
+    `/cashcue/api/getCashTransactions.php?${params.toString()}`
+  );
+  if (!res.ok) {
+    throw new Error("Failed to load cash transactions");
+  }
 
   const json = await res.json();
   const rows = json.data ?? [];
 
-  if (!rows.length) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="5" class="text-center text-muted">
-          No cash movements
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
-  tbody.innerHTML = "";
-
-  // Populate table rows
-  rows.forEach(row => {
-    const amount = Number(row.amount);
-    const cls = amount >= 0 ? "text-success" : "text-danger";
-
-    tbody.insertAdjacentHTML("beforeend", `
-      <tr>
-        <td>${row.date}</td>
-        <td>${row.type}</td>
-        <td class="text-end fw-bold ${cls}">
-          ${formatAmount(amount)}
-        </td>
-        <td>${row.reference_id ?? "—"}</td>
-        <td>${row.comment ?? ""}</td>
-      </tr>
-    `);
-  });
+  cashTable.setData(rows);
 }
 
 // ------------------------------------------------------------
-// RELOAD LOGIC (single entry point)
+// Reload logic (single entry point)
 // ------------------------------------------------------------
 
 /**
  * Reload all cash data for current broker
- * Uses CashCueAppContext to retrieve brokerAccountId
  */
 async function reloadCash() {
-  console.log("cash.js Function reloadCash called");
+  console.log("cash.js reloadCash() called");
 
-  // Get brokerAccountId from appContext.js
-  const brokerAccountId = await CashCueAppContext.waitForBrokerAccount();
-  console.log("cash.js reloadCash() brokerAccountId:", brokerAccountId);
+  const brokerAccountId =
+    await CashCueAppContext.waitForBrokerAccount();
+
+  console.log("cash.js brokerAccountId =", brokerAccountId);
 
   if (!brokerAccountId) {
-    const tbody = document.getElementById("cashTransactionsBody");
-    if (tbody) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="5" class="text-center text-muted">
-            Select a broker account
-          </td>
-        </tr>
-      `;
-    }
+    cashTable.setData([]);
     return;
   }
 
-  // Get date range from selector
   const rangeSelect = document.getElementById("cashRange");
   const range = computeDateRange(rangeSelect?.value ?? "all");
 
@@ -161,25 +184,34 @@ async function reloadCash() {
     await loadCashTransactions(brokerAccountId, range);
   } catch (err) {
     console.error("cash.js reload error:", err);
+    cashTable.setData([]);
   }
 }
 
 // ------------------------------------------------------------
-// EVENTS
+// Events
 // ------------------------------------------------------------
 
-// Listen to broker changes globally (header triggers event)
+// Broker change (emitted by header)
 document.addEventListener("brokerAccountChanged", () => {
-  console.log("cash.js detected broker change → reloading data");
+  console.log("cash.js detected broker change → reload");
   reloadCash();
 });
 
-// Listen to range selector change
-document.getElementById("cashRange")?.addEventListener("change", reloadCash);
+// Date range change
+document.getElementById("cashRange")
+  ?.addEventListener("change", reloadCash);
 
 // ------------------------------------------------------------
-// INITIAL LOAD
+// Init
 // ------------------------------------------------------------
 
-// Reload immediately on page load, using appContext
-reloadCash();
+document.addEventListener("DOMContentLoaded", async () => {
+
+  // Init table
+  initCashTable();
+
+  // Initial load
+  await CashCueAppContext.waitForBrokerAccount();
+  reloadCash();
+});

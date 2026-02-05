@@ -16,30 +16,17 @@
       ➕ Add Cash Movement
     </button>
   </div>
-
   <div class="card shadow-sm">
-    <div class="card-body table-responsive">
-      <table class="table table-hover align-middle" id="cashAdminTable">
-        <thead class="table-dark">
-          <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th class="text-end">Amount (€)</th>
-            <th>Reference</th>
-            <th>Comment</th>
-            <th class="text-center">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="cashAdminBody">
-          <!-- JS -->
-        </tbody>
-      </table>
+    <div class="card-body">
+      <div class="table-responsive" id="cashAdminTableContainer">
+        <!-- CashCueTable renders the table here -->
+      </div>
     </div>
   </div>
-
 </div>
 
 <?php require_once __DIR__ . '/../modals/cash_modal.php'; ?>
+<script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/manage_cash.js"></script>
 <?php require_once __DIR__ . '/../footer.php'; ?>

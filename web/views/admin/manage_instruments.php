@@ -36,22 +36,8 @@ require_once __DIR__ . '/../header.php';
       <i class="bi bi-plus-circle"></i> Add Instrument
     </button>
   </div>
-
-  <div class="table-responsive">
-    <table class="table table-striped table-hover" id="instrumentsTable">
-      <thead class="table-dark">
-        <tr>
-          <th>Symbol</th>
-          <th>Label</th>
-          <th>ISIN</th>
-          <th>Type</th>
-          <th>Currency</th>
-          <th>Status</th>
-          <th class="text-end">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="instrumentsTableBody"></tbody>
-    </table>
+  <div class="table-responsive" id="instrumentsTableContainer">
+    <!-- CashCueTable renders the table here -->
   </div>
 </div>
 
@@ -125,6 +111,7 @@ require_once __DIR__ . '/../header.php';
 </div>
 
 <!-- Load JS -->
+ <script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/manage_instruments.js"></script>
 
 <?php include __DIR__ . '/../footer.php'; ?>

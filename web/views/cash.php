@@ -58,26 +58,16 @@
     <div class="card-header bg-primary text-white fw-bold">
       Cash Movements
     </div>
-
-    <div class="card-body table-responsive">
-      <table class="table table-striped table-hover align-middle">
-        <thead class="table-dark">
-          <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th class="text-end">Amount (€)</th>
-            <th>Reference</th>
-            <th>Comment</th>
-          </tr>
-        </thead>
-        <tbody id="cashTransactionsBody">
-          <!-- populated by JS -->
-        </tbody>
-      </table>
-    </div>
-  </div>
-
+    <div class="card-body">
+      <div class="table-responsive" id="cashTableContainer">
+        <!-- CashCueTable renders the table here -->
+      </div>
+    <div>
 </div>
+
+  </div>
+</div>
+<script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/cash.js"></script>
 

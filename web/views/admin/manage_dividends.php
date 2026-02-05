@@ -35,30 +35,9 @@
             Add Dividend
         </button>
     </div>
-
     <!-- Dividends Table -->
-    <div class="table-responsive">
-        <table
-            id="dividendsTable"
-            class="table table-striped table-hover align-middle"
-        >
-            <thead class="table-dark">
-                <tr>
-                    <th>Payment Date</th>
-                    <th>Instrument</th>
-                    <th>Gross</th>
-                    <th>Taxes</th>
-                    <th>Net Received</th>
-                    <th>Currency</th>
-                    <th>Status</th>
-                    <th>Cancelled at</th>
-                    <th class="text-center">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Populated by manage_dividends.js -->
-            </tbody>
-        </table>
+    <div class="table-responsive" id="dividendsTableContainer">
+        <!-- CashCueTable renders the table here -->
     </div>
 </div>
 
@@ -188,6 +167,7 @@
 </div>
 
 <!-- Page JS -->
+<script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/manage_dividends.js"></script>
 

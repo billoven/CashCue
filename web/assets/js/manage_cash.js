@@ -2,11 +2,35 @@
 // Cash Movements Management — Admin Controller
 // assets/js/manage_cash.js
 // ============================================================
+//
+// Responsibilities:
+//  - Load cash movements for active broker account
+//  - Render cash table using CashCueTable abstraction
+//  - Handle add / edit / delete cash movements
+//  - Enforce business rules on editable vs computed entries
+//
+// Dependencies:
+//  - CashCueAppContext (broker resolution)
+//  - CashCueTable (generic sortable table)
+//  - Bootstrap Modal
+//  - Flatpickr
+//
+// API endpoints:
+//  - getCashTransactions.php
+//  - addCashTransaction.php
+//  - updateCashTransaction.php
+//  - deleteCashTransaction.php
+// ============================================================
 
 console.log("manage_cash.js loaded");
 
+// ------------------------------------------------------------
+// State
+// ------------------------------------------------------------
+
 let cashDatePicker = null;
 let cashModal = null;
+let cashTable = null;
 let currentMode = "add"; // "add" | "edit"
 
 // ------------------------------------------------------------
@@ -14,10 +38,23 @@ let currentMode = "add"; // "add" | "edit"
 // ------------------------------------------------------------
 
 // All possible cash movement types
-const ALL_TYPES = ["BUY", "SELL", "DIVIDEND", "DEPOSIT", "ADJUSTMENT", "WITHDRAWAL", "FEES"];
+const ALL_TYPES = [
+  "BUY",
+  "SELL",
+  "DIVIDEND",
+  "DEPOSIT",
+  "ADJUSTMENT",
+  "WITHDRAWAL",
+  "FEES"
+];
 
 // Types that can be manually edited
-const MANUAL_TYPES = ["DEPOSIT", "ADJUSTMENT", "WITHDRAWAL", "FEES"];
+const MANUAL_TYPES = [
+  "DEPOSIT",
+  "ADJUSTMENT",
+  "WITHDRAWAL",
+  "FEES"
+];
 
 // Computed types must be locked in UI
 const LOCKED_TYPES = ALL_TYPES.filter(t => !MANUAL_TYPES.includes(t));
@@ -34,85 +71,109 @@ function fmtAmount(v) {
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
+/**
+ * Render actions column depending on cash type
+ */
+function renderActions(row) {
+  const type = String(row.type).toUpperCase();
+  const isLocked = LOCKED_TYPES.includes(type);
+
+  if (isLocked) {
+    return `<span class="text-muted fst-italic">Computed</span>`;
+  }
+
+  return `
+    <button class="btn btn-sm btn-outline-primary me-1"
+            onclick="editCash(${row.id})"
+            title="Edit cash movement">
+      <i class="bi bi-pencil"></i>
+    </button>
+    <button class="btn btn-sm btn-outline-danger"
+            onclick="deleteCash(${row.id})"
+            title="Delete cash movement">
+      <i class="bi bi-trash"></i>
+    </button>
+  `;
+}
+
 // ------------------------------------------------------------
-// Core data loading logic
+// Table initialization
 // ------------------------------------------------------------
 
-/**
- * Reload all cash movements table for current broker
- */
+function initCashTable() {
+  cashTable = new CashCueTable({
+    emptyMessage: "No cash movements",
+    containerId: "cashAdminTableContainer",
+    columns: [
+      {
+        key: "date",
+        label: "Date",
+        sortable: true
+      },
+      {
+        key: "type",
+        label: "Type",
+        sortable: true
+      },
+      {
+        key: "amount",
+        label: "Amount (€)",
+        sortable: true,
+        align: "end",
+        type: "number",
+        render: row => parseFloat(row.amount).toFixed(4)
+      },
+      {
+        key: "reference_id",
+        label: "Reference",
+        sortable: false,
+        render: row => row.reference_id ?? "—"
+      },
+      {
+        key: "comment",
+        label: "Comment",
+        sortable: false,
+        render: row => row.comment ?? ""
+      },
+      {
+        key: "actions",
+        label: "Actions",
+        sortable: false,
+        align: "center",
+        html: true,
+        render: renderActions
+      }
+    ]
+  });
+}
+
+// ------------------------------------------------------------
+// Data loading
+// ------------------------------------------------------------
+
 async function reloadPageData() {
   console.log("CashCue: reloading cash movements");
 
-  // Wait until the brokerAccountId is available
   const brokerAccountId = await CashCueAppContext.waitForBrokerAccount();
   console.log("manage_cash.js: current brokerAccountId =", brokerAccountId);
 
-  const tbody = document.getElementById("cashAdminBody");
-  if (!tbody) return;
-
-  tbody.innerHTML = "";
-
   try {
-    const res = await fetch(`/cashcue/api/getCashTransactions.php?broker_account_id=${brokerAccountId}`);
+    const res = await fetch(
+      `/cashcue/api/getCashTransactions.php?broker_account_id=${brokerAccountId}`
+    );
     const json = await res.json();
     const rows = json.data ?? [];
 
-    if (!rows.length) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="6" class="text-center text-muted">
-            No cash movements
-          </td>
-        </tr>
-      `;
-      return;
-    }
-    console.log('CashCue: loaded cash movements', rows);
-    // Populate table
-    rows.forEach(r => {
-      const type = String(r.type).toUpperCase();
-      const isLocked = LOCKED_TYPES.includes(type);
-
-      const actions = isLocked
-        ? `<span class="text-muted fst-italic">Computed</span>`
-        : `
-          <button class="btn btn-sm btn-outline-primary me-1"
-                  onclick="editCash(${r.id})">
-              <i class="bi bi-pencil"></i>
-          </button>
-          <button class="btn btn-sm btn-outline-danger"
-                  onclick="deleteCash(${r.id})">
-              <i class="bi bi-trash"></i>
-          </button>
-        `;
-
-      tbody.insertAdjacentHTML("beforeend", `
-        <tr>
-          <td>${r.date}</td>
-          <td>${r.type}</td>
-          <td class="text-end">${fmtAmount(r.amount)}</td>
-          <td>${r.reference_id ?? "—"}</td>
-          <td>${r.comment ?? ""}</td>
-          <td class="text-center">${actions}</td>
-        </tr>
-      `);
-    });
+    cashTable.setData(rows);
 
   } catch (err) {
     console.error("CashCue: failed to load cash movements", err);
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" class="text-center text-danger">
-          Error loading cash movements
-        </td>
-      </tr>
-    `;
+    cashTable.setData([]);
   }
 }
 
 // ------------------------------------------------------------
-// Modals (Add / Edit Cash Movements)
+// Modals (Add / Edit)
 // ------------------------------------------------------------
 
 function openAddCashModal() {
@@ -134,13 +195,15 @@ function openAddCashModal() {
 async function editCash(id) {
   currentMode = "edit";
   console.log("CashCue: editing cash movement", id);
-  
+
   try {
-    const res = await fetch(`/cashcue/api/getCashTransactions.php?broker_account_id=all`);
+    const res = await fetch(
+      `/cashcue/api/getCashTransactions.php?broker_account_id=all`
+    );
     const json = await res.json();
     const rows = json.data ?? [];
     const row = rows.find(r => r.id == id);
-    console.log("CashCue: loaded cash movement", row);
+
     if (!row) {
       alert("Cash movement not found.");
       return;
@@ -151,7 +214,6 @@ async function editCash(id) {
     document.getElementById("cashModalTitle").innerText = "Edit Cash Movement";
     document.getElementById("cash_id").value = row.id;
 
-    // Truncate seconds to minute precision
     cashDatePicker.setDate(row.date.substring(0, 16), true);
 
     const typeSelect = document.getElementById("cash_type");
@@ -170,7 +232,7 @@ async function editCash(id) {
 }
 
 // ------------------------------------------------------------
-// Save / Delete API calls
+// Save / Delete
 // ------------------------------------------------------------
 
 async function saveCash() {
@@ -196,7 +258,9 @@ async function saveCash() {
     });
 
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || "Unknown API error");
+    if (!json.success) {
+      throw new Error(json.error || "Unknown API error");
+    }
 
     cashModal.hide();
     reloadPageData();
@@ -218,7 +282,9 @@ async function deleteCash(id) {
     });
 
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || "Delete failed");
+    if (!json.success) {
+      throw new Error(json.error || "Delete failed");
+    }
 
     reloadPageData();
 
@@ -229,12 +295,12 @@ async function deleteCash(id) {
 }
 
 // ------------------------------------------------------------
-// Init — DOMContentLoaded
+// Init
 // ------------------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-  // Init Flatpickr for date selection
+  // Flatpickr
   cashDatePicker = flatpickr("#cash_date", {
     enableTime: true,
     time_24hr: true,
@@ -245,25 +311,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     allowInput: true
   });
 
-  // Init Bootstrap Modal
-  cashModal = new bootstrap.Modal(document.getElementById("cashModal"));
+  // Modal
+  cashModal = new bootstrap.Modal(
+    document.getElementById("cashModal")
+  );
 
-  // Button events
-  document.getElementById("btnAddCash")?.addEventListener("click", openAddCashModal);
-  document.getElementById("cashSaveBtn")?.addEventListener("click", saveCash);
+  // Buttons
+  document.getElementById("btnAddCash")
+    ?.addEventListener("click", openAddCashModal);
 
-  // ------------------------------------------------------------
-  // Reload page data after broker resolved
-  // ------------------------------------------------------------
+  document.getElementById("cashSaveBtn")
+    ?.addEventListener("click", saveCash);
 
-  const brokerAccountId = await CashCueAppContext.waitForBrokerAccount();
-  console.log("manage_cash.js: initial load with brokerAccountId =", brokerAccountId);
+  // Table
+  initCashTable();
 
+  // Initial load
+  await CashCueAppContext.waitForBrokerAccount();
   reloadPageData();
 
-  // Listen to broker changes
+  // Broker change
   document.addEventListener("brokerAccountChanged", () => {
     console.log("manage_cash.js: broker changed → reload data");
     reloadPageData();
   });
 });
+

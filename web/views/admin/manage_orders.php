@@ -19,40 +19,11 @@
         <i class="bi bi-plus-circle"></i> Add Order
       </button>
     </div>
-
-    <!-- 🧾 Orders Table -->
-    <div class="table-responsive mb-3">
-      <table class="table table-striped table-hover align-middle" id="ordersTable">
-        <thead class="table-dark">
-          <tr>
-            <th>Symbol</th>
-            <th>Label</th>
-            <th>Type</th>
-            <th>Quantity</th>
-            <th>Price (€)</th>
-            <th>Fees (€)</th>
-            <th>Total (€)</th>
-            <th>Trade Date</th>
-            <th>Status</th>
-            <th>Cancelled at</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- JS populates here -->
-        </tbody>
-      </table>
-    </div>
-
-
-    <!-- Pagination -->
-    <div class="d-flex justify-content-between align-items-center mt-3 mb-5">
-      <button id="prevPage" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
-      <span id="pageInfo" class="mx-2">Page 1</span>
-      <button id="nextPage" class="btn btn-outline-secondary btn-sm">Next</button>
+    <!-- 🧾 Orders Table (CashCueTable-ready) -->
+    <div class="table-responsive mb-3" id="ordersTableContainer">
+      <!-- CashCueTable will create the <table> and populate rows here -->
     </div>
   </div>
-</div>
 
 <!-- 🧩 Modal: Add / Edit Order -->
 <div class="modal fade" id="orderModal" tabindex="-1" aria-labelledby="orderModalLabel" aria-hidden="true">
@@ -111,6 +82,7 @@
     </div>
   </div>
 </div>
+<script src="/cashcue/assets/js/CashCueTable.js"></script>
 <script src="/cashcue/assets/js/appContext.js"></script>
 <script src="/cashcue/assets/js/manage_orders.js"></script>
 <?php include __DIR__ . '/../footer.php'; ?>
