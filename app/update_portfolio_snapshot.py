@@ -1,62 +1,55 @@
-##!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-CashCue – Portfolio Snapshot Updater
-====================================
+CashCue - Portfolio Snapshot Updater (Pedagogical Version)
+==========================================================
 
-Purpose
+PURPOSE
 -------
-This script computes and stores DAILY portfolio snapshots per broker account
-into the `portfolio_snapshot` table.
+This script captures a DAILY FINANCIAL SNAPSHOT of each broker account.
 
-A snapshot represents the *financial state of the portfolio at a given date*,
-not a historical cash-flow report.
+A snapshot is a *photograph*, not a recalculation engine.
 
-For each broker_account and date, the script computes:
-- total_value        : Market value of currently held instruments
-- invested_amount    : Cost basis of OPEN positions (capital still exposed)
-- unrealized_pl      : Latent P/L = total_value - invested_amount
-- realized_pl        : Currently NOT computed here (reserved for future FIFO logic)
-- dividends_received : Cumulated dividends paid up to snapshot date
-- cash_balance       : Cash balance as computed by recalc_cash_balances
+Core principle:
+    - CashCue has a dedicated CASH LEDGER
+    - CashCue persists CURRENT CASH BALANCE
+    - This script MUST NEVER recompute cash
 
-IMPORTANT FINANCIAL DEFINITIONS
--------------------------------
-- invested_amount ≠ total BUY amount
-  invested_amount is the NET cost basis of positions still held.
-  Total historical BUY amounts (e.g. PEA cap usage) must be computed elsewhere.
+ARCHITECTURAL RULES
+-------------------
+1. cash_account.current_balance is the ONLY source of truth for cash
+2. cash_transaction is the ONLY source of dividends and cash movements
+3. order_transaction is the ONLY source for invested capital & realized P/L
+4. portfolio_snapshot stores a historical snapshot (append / upsert)
 
-- Snapshot date uses the last known market price <= snapshot date.
-  This guarantees temporal consistency.
+WHAT THIS SCRIPT DOES
+---------------------
+For each broker_account:
+- Reads current cash balance
+- Computes invested amount (BUY - SELL)
+- Computes total portfolio market value
+- Computes unrealized P/L
+- Aggregates dividends received
+- Stores everything into portfolio_snapshot
 
-Assumptions
------------
-- order_transaction contains:
-    - order_type in ('BUY', 'SELL')
-    - quantity
-    - total_cost (including fees)
-- instrument.status is meaningful:
-    - only ACTIVE or SUSPENDED instruments are valued
-- cash_balance is computed externally by app.recalc_cash_balances
-- realized P/L will be handled by a dedicated process in the future
+WHAT THIS SCRIPT DOES NOT DO
+----------------------------
+- Does NOT recalculate cash from transactions
+- Does NOT repair inconsistencies
+- Does NOT update cash_account
+- Does NOT mutate business data
 
-Safety
-------
-- --dry-run prevents any DB writes
-- cash_balance is NEVER overwritten with zero blindly
+If cash is wrong -> FIX THE CASH LEDGER, not the snapshot.
 
-Author
-------
-CashCue project – financial logic validated for production usage
-
-IMPORTANT
+EXECUTION
 ---------
-Cash balances must be recalculated before snapshot persistence.
-This requirement is satisfied when update_portfolio_snapshot.py is executed with the --with-cash option.
+- Intended to run once per day (after market close)
+- Safe to re-run (idempotent via ON DUPLICATE KEY UPDATE)
+- DRY-RUN supported
+
 """
 
 import argparse
-import subprocess
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 
 from lib.config import ConfigManager
@@ -66,146 +59,162 @@ from lib.db import DatabaseConnection
 
 class PortfolioSnapshotUpdater:
     """
-    Computes and upserts daily portfolio snapshots per broker account.
+    Handles the creation of daily portfolio snapshots.
+
+    Each broker_account is processed independently.
     """
 
-    def __init__(self, config, logger, dry_run: bool = False):
+    def __init__(self, config, logger, dry_run=False):
         self.config = config
-        self.logger = logger.get_logger()
+        self.logger = logger
         self.dry_run = dry_run
+
+        self.snapshot_date = date.today()
 
         self.db = DatabaseConnection(
             host=config.get("DB_HOST", "localhost"),
             user=config.get("DB_USER"),
             password=config.get("DB_PASS"),
             database=config.get("DB_NAME"),
-            port=int(config.get("DB_PORT", 3306)),
+            port=int(config.get("DB_PORT", 3306))
         )
         self.db.connect()
 
-    # ---------------------------------------------------------
-    # DATA FETCHING
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
+    # FETCH: broker accounts
+    # ------------------------------------------------------------------
 
-    def fetch_brokers(self):
+    def fetch_broker_accounts(self):
+        """
+        Returns all broker accounts.
+        """
         sql = "SELECT id, name FROM broker_account"
         with self.db.cursor() as cur:
             cur.execute(sql)
             return cur.fetchall()
 
-    def fetch_instruments(self, broker_account_id: int):
+    # ------------------------------------------------------------------
+    # FETCH: cash (SOURCE OF TRUTH)
+    # ------------------------------------------------------------------
+
+    def fetch_cash_balance(self, broker_account_id):
         """
-        Returns only OPEN positions with a positive quantity held.
-        invested_amount represents the NET cost basis of remaining positions.
+        Reads the OFFICIAL cash balance.
+
+        IMPORTANT:
+        This value is already consolidated and persisted.
+        It MUST NOT be recomputed here.
+        """
+        sql = """
+            SELECT current_balance
+            FROM cash_account
+            WHERE broker_account_id = %s
+        """
+        with self.db.cursor() as cur:
+            cur.execute(sql, (broker_account_id,))
+            row = cur.fetchone()
+            return Decimal(row["current_balance"]) if row else Decimal("0.00")
+
+    # ------------------------------------------------------------------
+    # FETCH: dividends
+    # ------------------------------------------------------------------
+
+    def fetch_dividends_received(self, broker_account_id):
+        """
+        Aggregates dividends from the cash ledger.
+        """
+        sql = """
+            SELECT COALESCE(SUM(amount), 0) AS total
+            FROM cash_transaction
+            WHERE broker_account_id = %s
+              AND type = 'DIVIDEND'
+              AND date <= %s
+        """
+        with self.db.cursor() as cur:
+            cur.execute(sql, (broker_account_id, self.snapshot_date))
+            row = cur.fetchone()
+            return Decimal(row["total"])
+
+    # ------------------------------------------------------------------
+    # FETCH: invested amount
+    # ------------------------------------------------------------------
+
+    def fetch_invested_amount(self, broker_account_id):
+        """
+        Computes NET invested capital.
+
+        Definition:
+            invested_amount = SUM(BUY) - SUM(SELL)
+
+        NOTE:
+        This is NOT "total BUY volume".
+        This represents capital currently at work.
         """
         sql = """
             SELECT
-                o.instrument_id,
-                i.label,
-                i.symbol,
-
-                SUM(
+                COALESCE(SUM(
                     CASE
-                        WHEN o.order_type = 'BUY'  THEN o.quantity
-                        WHEN o.order_type = 'SELL' THEN -o.quantity
+                        WHEN type = 'BUY'  THEN amount
+                        WHEN type = 'SELL' THEN -amount
                         ELSE 0
                     END
-                ) AS qty_held,
-
-                SUM(
-                    CASE
-                        WHEN o.order_type = 'BUY'  THEN o.total_cost
-                        WHEN o.order_type = 'SELL' THEN -o.total_cost
-                        ELSE 0
-                    END
-                ) AS invested_amount
-
-            FROM order_transaction o
-            JOIN instrument i ON i.id = o.instrument_id
-
-            WHERE o.broker_account_id = %s
-              AND i.status IN ('ACTIVE', 'SUSPENDED')
-
-            GROUP BY o.instrument_id
-            HAVING qty_held > 0
-        """
-        with self.db.cursor() as cur:
-            cur.execute(sql, (broker_account_id,))
-            return cur.fetchall()
-
-    def fetch_latest_price(self, instrument_id: int, snapshot_date: date):
-        """
-        Returns the last known market price <= snapshot date.
-        Ensures temporal consistency of the snapshot.
-        """
-        sql = """
-            SELECT price
-            FROM realtime_price
-            WHERE instrument_id = %s
-              AND captured_at <= %s
-            ORDER BY captured_at DESC
-            LIMIT 1
-        """
-        with self.db.cursor() as cur:
-            cur.execute(sql, (instrument_id, snapshot_date))
-            row = cur.fetchone()
-
-            if row and row["price"] is not None:
-                return Decimal(str(row["price"]))
-
-            return None
-
-    def fetch_dividends(self, broker_account_id: int, snapshot_date: date):
-        """
-        Returns total dividends paid up to snapshot date.
-        Dividends are assumed to be NET (after taxes).
-        """
-        sql = """
-            SELECT COALESCE(SUM(amount), 0) AS dividends
-            FROM dividend
+                ), 0) AS invested
+            FROM order_transaction
             WHERE broker_account_id = %s
-              AND payment_date <= %s
+              AND date <= %s
         """
         with self.db.cursor() as cur:
-            cur.execute(sql, (broker_account_id, snapshot_date))
+            cur.execute(sql, (broker_account_id, self.snapshot_date))
             row = cur.fetchone()
-            return Decimal(row["dividends"]) if row else Decimal("0.00")
+            return Decimal(row["invested"])
 
-    def fetch_last_cash_balance(self, broker_account_id: int):
+    # ------------------------------------------------------------------
+    # FETCH: total portfolio market value
+    # ------------------------------------------------------------------
+
+    def fetch_total_market_value(self, broker_account_id):
         """
-        Reads the latest known cash balance.
-        Prevents accidental overwrite with zero.
+        Computes current market value of holdings.
+
+        Assumes:
+        - Positions are derived from order_transaction
+        - Latest prices are available in daily_price / realtime_price
         """
         sql = """
-            SELECT cash_balance
-            FROM portfolio_snapshot
-            WHERE broker_account_id = %s
-            ORDER BY date DESC
-            LIMIT 1
+            SELECT COALESCE(SUM(p.quantity * pr.price), 0) AS total_value
+            FROM position_view p
+            JOIN latest_price_view pr ON pr.instrument_id = p.instrument_id
+            WHERE p.broker_account_id = %s
         """
         with self.db.cursor() as cur:
             cur.execute(sql, (broker_account_id,))
             row = cur.fetchone()
+            return Decimal(row["total_value"])
 
-            if row and row["cash_balance"] is not None:
-                return Decimal(row["cash_balance"])
+    # ------------------------------------------------------------------
+    # STORE SNAPSHOT
+    # ------------------------------------------------------------------
 
-            return Decimal("0.00")
-
-    # ---------------------------------------------------------
-    # SNAPSHOT WRITE
-    # ---------------------------------------------------------
-
-    def upsert_snapshot(self, broker_account_id: int, snapshot_date: date, snapshot: dict):
+    def store_snapshot(
+        self,
+        broker_account_id,
+        total_value,
+        invested_amount,
+        unrealized_pl,
+        realized_pl,
+        dividends_received,
+        cash_balance
+    ):
+        """
+        Inserts or updates the portfolio snapshot.
+        """
         sql = """
             INSERT INTO portfolio_snapshot
             (broker_account_id, date,
              total_value, invested_amount,
              unrealized_pl, realized_pl,
              dividends_received, cash_balance)
-
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-
             ON DUPLICATE KEY UPDATE
                 total_value        = VALUES(total_value),
                 invested_amount    = VALUES(invested_amount),
@@ -217,13 +226,13 @@ class PortfolioSnapshotUpdater:
 
         params = (
             broker_account_id,
-            snapshot_date,
-            snapshot["total_value"],
-            snapshot["invested_amount"],
-            snapshot["unrealized_pl"],
-            snapshot["realized_pl"],
-            snapshot["dividends_received"],
-            snapshot["cash_balance"],
+            self.snapshot_date,
+            total_value,
+            invested_amount,
+            unrealized_pl,
+            realized_pl,
+            dividends_received,
+            cash_balance
         )
 
         if self.dry_run:
@@ -233,107 +242,71 @@ class PortfolioSnapshotUpdater:
         with self.db.cursor() as cur:
             cur.execute(sql, params)
 
-    # ---------------------------------------------------------
-    # MAIN LOGIC
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
+    # MAIN PROCESS
+    # ------------------------------------------------------------------
 
     def run(self):
-        snapshot_date = datetime.now().date()
         self.logger.info(
-            f"=== Portfolio Snapshot Update started (date={snapshot_date}, dry_run={self.dry_run}) ==="
+            f"=== Portfolio Snapshot Update started "
+            f"(date={self.snapshot_date}, dry_run={self.dry_run}) ==="
         )
 
-        brokers = self.fetch_brokers()
-        if not brokers:
-            self.logger.warning("No broker accounts found.")
-            return
+        brokers = self.fetch_broker_accounts()
 
         for broker in brokers:
-            broker_id = broker["id"]
-            broker_name = broker["name"]
+            bid = broker["id"]
+            name = broker["name"]
 
-            total_value = Decimal("0.00")
-            total_invested = Decimal("0.00")
-            total_unrealized = Decimal("0.00")
+            self.logger.info(f"Processing broker '{name}' (ID={bid})")
 
-            instruments = self.fetch_instruments(broker_id)
+            cash_balance = self.fetch_cash_balance(bid)
+            dividends = self.fetch_dividends_received(bid)
+            invested = self.fetch_invested_amount(bid)
+            total_value = self.fetch_total_market_value(bid)
 
-            for instr in instruments:
-                qty = Decimal(instr["qty_held"])
-                invested = Decimal(instr["invested_amount"])
+            unrealized_pl = total_value - invested
+            realized_pl = Decimal("0.00")  # placeholder (future extension)
 
-                price = self.fetch_latest_price(instr["instrument_id"], snapshot_date)
-                if price is None:
-                    self.logger.warning(
-                        f"No market price for {instr['symbol']} (broker={broker_name})"
-                    )
-                    continue
-
-                market_value = qty * price
-                unrealized = market_value - invested
-
-                total_value += market_value
-                total_invested += invested
-                total_unrealized += unrealized
-
-            dividends = self.fetch_dividends(broker_id, snapshot_date)
-            cash_balance = self.fetch_last_cash_balance(broker_id)
-
-            snapshot = {
-                "total_value": total_value,
-                "invested_amount": total_invested,
-                "unrealized_pl": total_unrealized,
-                "realized_pl": Decimal("0.00"),  # Explicitly not computed here
-                "dividends_received": dividends,
-                "cash_balance": cash_balance,
-            }
-
-            self.upsert_snapshot(broker_id, snapshot_date, snapshot)
+            self.store_snapshot(
+                broker_account_id=bid,
+                total_value=total_value,
+                invested_amount=invested,
+                unrealized_pl=unrealized_pl,
+                realized_pl=realized_pl,
+                dividends_received=dividends,
+                cash_balance=cash_balance
+            )
 
             self.logger.info(
-                f"Snapshot stored for broker '{broker_name}' "
-                f"(value={total_value}, invested={total_invested})"
+                f"Snapshot stored for '{name}' "
+                f"(value={total_value}, invested={invested}, cash={cash_balance})"
             )
 
         self.logger.info("=== Portfolio Snapshot Update completed ===")
 
 
-# ---------------------------------------------------------
-# CLI ENTRY POINT
-# ---------------------------------------------------------
+# ----------------------------------------------------------------------
+# ENTRY POINT
+# ----------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(
-        description="CashCue – Daily Portfolio Snapshot Updater"
+        description="CashCue Portfolio Snapshot Updater (Pedagogical)"
     )
-    parser.add_argument("--dry-run", action="store_true", help="No DB write")
     parser.add_argument(
-        "--with-cash",
+        "--dry-run",
         action="store_true",
-        help="Run cash recalculation before snapshot",
+        help="Simulate execution without DB writes"
     )
-
     args = parser.parse_args()
 
     config = ConfigManager("/etc/cashcue/cashcue.conf")
-    logger = LoggerManager(config.get("LOG_FILE", "/var/log/cashcue/portfolio_snapshot.log"))
+    logger = LoggerManager(
+        config.get("LOG_FILE", "/var/log/cashcue/portfolio_snapshot.log")
+    ).get_logger()
 
     dry_run = args.dry_run or config.get("DRY_RUN", "false").lower() == "true"
-
-    # ---------------------------------------------------------
-    # Optional: recompute cash BEFORE snapshot
-    # ---------------------------------------------------------
-    if args.with_cash:
-        logger.get_logger().info("Running cash balance recalculation...")
-        cmd = [
-            "/opt/cashcue/venv/bin/python3",
-            "-m",
-            "app.recalc_cash_balances",
-        ]
-        if dry_run:
-            cmd.append("--dry-run")
-
-        subprocess.run(cmd, capture_output=True, text=True)
 
     updater = PortfolioSnapshotUpdater(config, logger, dry_run)
     updater.run()
