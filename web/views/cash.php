@@ -7,7 +7,6 @@
 ?>
 
 <div class="container-fluid py-4">
-
   <?php require_once __DIR__ . '/_cash_nav.php'; ?>
 
   <!-- Header -->
@@ -62,9 +61,7 @@
       <div class="table-responsive" id="cashTableContainer">
         <!-- CashCueTable renders the table here -->
       </div>
-    <div>
-</div>
-
+    </div>
   </div>
 </div>
 <script src="/cashcue/assets/js/CashCueTable.js"></script>

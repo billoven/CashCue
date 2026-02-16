@@ -125,7 +125,7 @@ function initCashTable() {
       },
       {
         key: "reference_id",
-        label: "Reference",
+        label: "Order ID",
         sortable: false,
         render: row => row.reference_id ?? "—"
       },

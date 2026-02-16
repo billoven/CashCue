@@ -95,7 +95,7 @@ cashTable = new CashCueTable({
       },
       {
         key: "reference_id",
-        label: "Reference",
+        label: "Order ID",
         sortable: false,
         render: row => row.reference_id ?? "—"
       },
@@ -122,6 +122,8 @@ async function loadCashSummary(brokerAccountId) {
   );
   if (!res.ok) {
     throw new Error("Failed to load cash summary");
+      showAlert("danger", "Unable to load cash summary.");
+      return null;
   }
 
   const json = await res.json();
@@ -147,7 +149,8 @@ async function loadCashTransactions(brokerAccountId, range) {
     `/cashcue/api/getCashTransactions.php?${params.toString()}`
   );
   if (!res.ok) {
-    throw new Error("Failed to load cash transactions");
+      showAlert("danger", "Unable to load cash transactions.");
+      return null;
   }
 
   const json = await res.json();

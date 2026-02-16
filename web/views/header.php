@@ -59,10 +59,17 @@ if (!isset($BROKER_SCOPE)) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
+  <!-- Thème Bootstrap : https://bootswatch.com/pulse/
+  <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/pulse/bootstrap.min.css" rel="stylesheet">
+  <!-- Icônes Bootstrap 
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+-->
   <!-- ======================================================= -->
   <!-- Application CSS -->
   <!-- ======================================================= -->
   <link href="/cashcue/assets/css/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="/cashcue/assets/css/notifications.css">
+
 
   <!-- ======================================================= -->
   <!-- Vendor JS (head-safe libraries only) -->
@@ -85,6 +92,7 @@ if (!isset($BROKER_SCOPE)) {
   <!-- Global Header Controller (deferred) -->
   <!-- ======================================================= -->
   <script src="/cashcue/assets/js/header.js" defer></script>
+  <script src="/cashcue/assets/js/notifications.js"></script>
 </head>
 
 <body>
@@ -105,11 +113,11 @@ if (!isset($BROKER_SCOPE)) {
       </a>
 
       <a href="/cashcue/views/admin/manage_orders.php" class="list-group-item list-group-item-action bg-dark text-white">
-        <i class="bi bi-currency-exchange me-2"></i> Orders
+        <i class="bi bi-currency-exchange me-2"></i> Order
       </a>
 
       <a href="/cashcue/views/admin/manage_instruments.php" class="list-group-item list-group-item-action bg-dark text-white">
-        <i class="bi bi-bar-chart-line me-2"></i> Instruments
+        <i class="bi bi-bar-chart-line me-2"></i> Instrument
       </a>
 
       <a href="/cashcue/views/portfolio.php" class="list-group-item list-group-item-action bg-dark text-white">
@@ -121,11 +129,11 @@ if (!isset($BROKER_SCOPE)) {
       </a>
 
       <a href="/cashcue/views/admin/manage_brokers.php" class="list-group-item list-group-item-action bg-dark text-white">
-        <i class="bi bi-bank me-2"></i> Brokers
+        <i class="bi bi-bank me-2"></i> Broker Account
       </a>
 
       <a href="/cashcue/views/admin/manage_dividends.php" class="list-group-item list-group-item-action bg-dark text-white">
-        <i class="bi bi-cash-coin me-2"></i> Dividends
+        <i class="bi bi-cash-coin me-2"></i> Dividend
       </a>
 
     </div>
@@ -182,6 +190,12 @@ if (!isset($BROKER_SCOPE)) {
       </div>
     </nav>
 
+    <!-- ======================================================= -->
+    <!-- Global Application Alerts -->
+    <!-- ======================================================= -->
+    <div id="alertContainer" class="container-fluid mt-3 px-4"></div>
+
+  
     <!-- ===================================================== -->
     <!-- Main Content Container -->
     <!-- ===================================================== -->

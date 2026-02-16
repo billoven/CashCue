@@ -22,6 +22,7 @@ try {
             ot.quantity,
             ot.price,
             ot.fees,
+            ot.settled,
             ROUND(
                 CASE 
                     WHEN ot.order_type = 'BUY' THEN (ot.quantity * ot.price) + ot.fees
@@ -31,7 +32,8 @@ try {
             ) AS total,
             ot.trade_date,
             ot.status,
-            ot.cancelled_at
+            ot.cancelled_at,
+            ot.comment
         FROM order_transaction ot
         JOIN instrument i ON i.id = ot.instrument_id
     ";
@@ -62,6 +64,7 @@ try {
         $row['fees']     = (float) $row['fees'];
         $row['total']    = (float) $row['total'];
         $row['cancelled_at'] = $row['cancelled_at'] ?: null;
+        $row['settled']  = (int)   $row['settled'];   // ✅ AJOUT
     }
     echo json_encode([
         "status" => "success",

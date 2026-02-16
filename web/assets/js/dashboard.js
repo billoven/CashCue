@@ -162,8 +162,10 @@ async function loadLastOrders(accountId) {
     const res = await fetch(`/cashcue/api/getOrders.php?broker_account_id=${accountId}`);
     const json = await res.json();
 
-    if (json.status !== "success") throw new Error(json.message);
-
+    if (json.status !== "success") {
+      showAlert("danger", `Failed to load orders: ${json.message || "Unknown error"}`);
+      throw new Error(json.message);
+    }
     const tableBody = document.getElementById("ordersTableBody");
     if (!tableBody) return;
 

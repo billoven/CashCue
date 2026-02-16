@@ -51,7 +51,9 @@ try {
     $price             = (float)$input['price'];
     $fees              = isset($input['fees']) ? (float)$input['fees'] : 0.0;
     $trade_date        = $input['trade_date'];
-    $settled           = isset($input['settled']) ? (int)$input['settled'] : 1;
+    // $settled           = isset($input['settled']) ? (int)$input['settled'] : 1;
+    $settled           = ($order_type === 'BUY') ? 1 : ($input['settled'] ?? 0);
+    $comment            = trim($input['comment'] ?? null);
 
     if (!in_array($order_type, ['BUY','SELL'])) {
         throw new Exception("Invalid order_type");
@@ -66,11 +68,17 @@ try {
     $pdo->beginTransaction();
 
     // ------------------------------------------------------------
-    // Verify broker account exists
+    // Verify broker account exists (LOCK row to prevent race condition)
     // ------------------------------------------------------------
-    $brokerStmt = $pdo->prepare("SELECT has_cash_account FROM broker_account WHERE id = :id LIMIT 1");
+    $brokerStmt = $pdo->prepare("
+        SELECT id, has_cash_account
+        FROM broker_account
+        WHERE id = :id
+        FOR UPDATE
+    ");
     $brokerStmt->execute([':id' => $broker_account_id]);
     $brokerRow = $brokerStmt->fetch(PDO::FETCH_ASSOC);
+
     if (!$brokerRow) {
         throw new Exception("Broker account not found.");
     }
@@ -89,6 +97,41 @@ try {
     }
 
     // ------------------------------------------------------------
+    // BUSINESS RULE: Check sufficient cash for BUY
+    // ------------------------------------------------------------
+    if ($order_type === 'BUY' && (int)$brokerRow['has_cash_account'] === 1) {
+
+        $requiredAmount = round($quantity * $price + $fees, 2);
+
+        // Lock cash_account row
+        $cashStmt = $pdo->prepare("
+            SELECT current_balance
+            FROM cash_account
+            WHERE broker_account_id = :broker_account_id
+            FOR UPDATE
+        ");
+        $cashStmt->execute([':broker_account_id' => $broker_account_id]);
+        $cashRow = $cashStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$cashRow) {
+            throw new Exception("Cash account not found for this broker.");
+        }
+
+        $cashAvailable = (float)$cashRow['current_balance'];
+
+        if ($cashAvailable < $requiredAmount) {
+
+            $missing = $requiredAmount - $cashAvailable;
+            $missingRounded = ceil($missing);
+
+            throw new Exception(
+                "Insufficient cash balance. You need an additional €{$missingRounded} to execute this BUY order."
+            );
+        }
+    }
+
+
+    // ------------------------------------------------------------
     // Insert order_transaction
     // ------------------------------------------------------------
     $stmt = $pdo->prepare("
@@ -103,7 +146,8 @@ try {
             trade_date,
             settled,
             status,
-            cancelled_at
+            cancelled_at,
+            comment
         )
         VALUES
         (
@@ -116,7 +160,8 @@ try {
             :trade_date,
             :settled,
             :status,
-            :cancelled_at
+            :cancelled_at,
+            :comment
         )
     ");
     $stmt->execute([
@@ -129,7 +174,8 @@ try {
         ':trade_date'        => $trade_date,
         ':settled'           => $settled,
         ':status'            => 'ACTIVE',
-        ':cancelled_at'      => null
+        ':cancelled_at'      => null,
+        ':comment'           => $comment
     ]);
     $order_id = (int)$pdo->lastInsertId();
 
@@ -137,48 +183,86 @@ try {
     // Optional cash transaction if broker has cash account
     // ------------------------------------------------------------
     if ((int)$brokerRow['has_cash_account'] === 1) {
-        $amt = ($order_type === 'BUY') ? round($quantity*$price + $fees,2) : round($quantity*$price - $fees,2);
-        $amount = ($order_type === 'BUY') ? -abs($amt) : abs($amt);
-        $ctype  = $order_type;
 
+        // --------------------------------------------------------
+        // Compute cash impact of the order
+        // BUY  → negative cash (outflow)
+        // SELL → positive cash (inflow)
+        // --------------------------------------------------------
+        $grossAmount = round($quantity * $price, 2);
+
+        if ($order_type === 'BUY') {
+            $cashImpact = -round($grossAmount + $fees, 2);
+        } else { // SELL
+            $cashImpact = round($grossAmount - $fees, 2);
+        }
+
+        $cashComment = sprintf(
+            'Order %s - initial cash impact',
+            $order_type
+        );
+
+        // --------------------------------------------------------
+        // Insert cash transaction (traceability layer)
+        // --------------------------------------------------------
         $ins = $pdo->prepare("
             INSERT INTO cash_transaction
-            (broker_account_id, date, amount, type, reference_id, comment)
-            VALUES (:broker_account_id, :date, :amount, :type, :reference_id, NULL)
+            (
+                broker_account_id,
+                date,
+                amount,
+                type,
+                reference_id,
+                comment
+            )
+            VALUES
+            (
+                :broker_account_id,
+                :date,
+                :amount,
+                :type,
+                :reference_id,
+                :comment
+            )
         ");
+
         $ins->execute([
             ':broker_account_id' => $broker_account_id,
             ':date'              => $trade_date,
-            ':amount'            => $amount,
-            ':type'              => $ctype,
-            ':reference_id'      => $order_id
+            ':amount'            => $cashImpact,
+            ':type'              => $order_type,
+            ':reference_id'      => $order_id,
+            ':comment'           => $cashComment
         ]);
 
-        // Update current balance
-        $sumStmt = $pdo->prepare("
-            SELECT COALESCE(SUM(amount),0) AS sum_amount
-            FROM cash_transaction
+        // --------------------------------------------------------
+        // Incremental balance update (O(1) operation)
+        // Avoid full SUM() recomputation for performance & scalability
+        // Row already locked earlier with FOR UPDATE
+        // --------------------------------------------------------
+        $upd = $pdo->prepare("
+            UPDATE cash_account
+            SET 
+                current_balance = current_balance + :impact,
+                updated_at = NOW()
             WHERE broker_account_id = :broker_account_id
         ");
-        $sumStmt->execute([':broker_account_id' => $broker_account_id]);
-        $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
-        if ($sumRow) {
-            $upd = $pdo->prepare("
-                UPDATE cash_account
-                SET current_balance = :bal, updated_at = NOW()
-                WHERE broker_account_id = :broker_account_id
-            ");
-            $upd->execute([
-                ':bal' => $sumRow['sum_amount'],
-                ':broker_account_id' => $broker_account_id
-            ]);
-        }
+
+        $upd->execute([
+            ':impact'            => $cashImpact,
+            ':broker_account_id' => $broker_account_id
+        ]);
     }
 
+    // ------------------------------------------------------------
+    // Commit transaction (atomic operation)
+    // ------------------------------------------------------------
     $pdo->commit();
-    ob_end_clean(); // clear buffer
-    echo json_encode(['success' => true, 'order_id' => $order_id]);
-
+    ob_end_clean();
+    echo json_encode([
+        'success'  => true,
+        'order_id' => $order_id
+    ]);
 } catch (Exception $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     ob_end_clean();

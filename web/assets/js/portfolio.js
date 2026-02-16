@@ -102,6 +102,8 @@ async function loadHoldings() {
   const brokerId = window.CashCueAppContext.getBrokerAccountId();
   if (!brokerId) return;
 
+  console.log("Loading holdings for broker_account_id:", brokerId);
+
   try {
     const res = await fetch(`/cashcue/api/getHoldings.php?broker_account_id=${brokerId}`);
     const json = await res.json();

@@ -12,7 +12,6 @@ $page = $page ?? '';
 
 <div class="mb-4">
   <ul class="nav nav-pills">
-
     <li class="nav-item">
       <a class="nav-link <?= $page === 'cash' ? 'active' : '' ?>"
          href="/cashcue/views/cash.php">
@@ -20,7 +19,6 @@ $page = $page ?? '';
         Overview
       </a>
     </li>
-
     <li class="nav-item">
       <a class="nav-link <?= $page === 'manage_cash' ? 'active' : '' ?>"
          href="/cashcue/views/admin/manage_cash.php">
@@ -28,6 +26,5 @@ $page = $page ?? '';
         Movements
       </a>
     </li>
-
   </ul>
 </div>

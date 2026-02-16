@@ -15,6 +15,29 @@
 
 console.log("header.js loaded");
 
+/**
+ * Displays a global, dismissible Bootstrap alert message.
+ *
+ * Purpose:
+ * - Provide user feedback for actions and errors across the application
+ * - Replace ad-hoc alerts or page-specific notifications
+ *
+ * Behavior:
+ * - Renders the alert inside the global alert container
+ * - Supports contextual types (success, info, warning, danger)
+ * - Auto-dismisses after a configurable delay (optional)
+ *
+ * Intended usage:
+ * - API responses (success / error)
+ * - User action confirmations
+ * - Validation or business rule feedback
+ *
+ * This is a UI helper only:
+ * - No business logic
+ * - No state mutation
+ */
+
+
 // ------------------------------------------------------------
 // 1. Read configuration injected by header.php
 // ------------------------------------------------------------
@@ -28,6 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const area   = document.getElementById("brokerAccountArea");
     const select = document.getElementById("activeAccountSelect");
+
 
     // --------------------------------------------------------
     // CASE 1: Broker selection disabled

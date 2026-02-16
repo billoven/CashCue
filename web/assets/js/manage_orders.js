@@ -3,48 +3,67 @@
  * ----------------
  * Orders Management module for CashCue Web Application
  *
- * Purpose:
+ * Responsibilities:
  *   - Display all orders for the selected broker account
- *   - Allow adding new orders via modal form
- *   - Allow cancelling orders directly from the table
- *   - Support searching, sorting, and pagination via CashCueTable
+ *   - Allow adding new orders
+ *   - Allow cancelling existing orders
+ *   - Allow controlled order updates via a dedicated Update modal
+ *
+ * Update logic (IMPORTANT):
+ * ------------------------------------------------------------------
+ * This module supports TWO update modes through updateOrderModal:
+ *
+ * 1) Comment-only update
+ *    - Updates only the comment field
+ *    - NO cash recalculation
+ *    - Allowed for any order (ACTIVE or CANCELLED)
+ *    - No date restriction
+ *
+ * 2) Financial correction (J0 only)
+ *    - Allowed ONLY if:
+ *        • order status = ACTIVE
+ *        • trade_date = today
+ *    - Allowed fields:
+ *        • quantity
+ *        • price
+ *        • fees
+ *        • comment (mandatory)
+ *    - Triggers cash recalculation through updateOrder.php
+ *
+ * Safety principles:
+ *   - Financial history cannot be modified
+ *   - Cancelled orders cannot be financially altered
+ *   - Cash consistency is preserved via backend transactions
  *
  * Dependencies:
- *   - Bootstrap 5 (for modal and buttons)
- *   - flatpickr (for trade date input)
- *   - CashCueTable.js (table rendering, search, sort, pagination)
- *   - appContext.js (CashCueAppContext for broker_account_id)
+ *   - Bootstrap 5
+ *   - flatpickr
+ *   - CashCueTable.js
+ *   - appContext.js
+ *   - updateOrderModal.js
  *
- * Key Features:
- *   1. Persistent CashCueTable instance for orders
- *   2. Dynamic loading of instruments and orders from API
- *   3. Status column with badges (ACTIVE / CANCELLED)
- *   4. Actions column with cancel icon and conditional disabling
- *   5. Pagination and search integrated with CashCueTable
- *   6. Modal form for Add/Edit order, with date picker
- *   7. Automatic refresh on broker change via event brokerAccountChanged
- *
- * Implementation Notes:
- *   - Orders are fetched from `/cashcue/api/getOrders.php?broker_account_id=...`
- *   - Instruments are fetched from `/cashcue/api/getInstruments.php`
- *   - Add/Edit uses `/cashcue/api/addOrder.php`
- *   - Cancel uses `/cashcue/api/cancelOrder.php?id=...`
- *
- * Usage:
- *   1. Include this script after CashCueTable.js and appContext.js
- *   2. HTML should provide:
- *        - <div id="ordersTableContainer"></div> for table
- *        - Modal structure with id="orderModal" and form id="orderForm"
- *        - Buttons: #btnAddOrder, #saveOrder
- *        - Search input: #searchOrder
- *   3. CashCueAppContext must be initialized before calling loadOrders()
+ * APIs used:
+ *   - GET  /cashcue/api/getOrders.php
+ *   - POST /cashcue/api/addOrder.php
+ *   - POST /cashcue/api/updateOrder.php
+ *   - GET  /cashcue/api/cancelOrder.php
  *
  * Author: Pierre
- * Created: 2026-02-03
- * Last Modified: 2026-02-03
+ * Last Modified: 2026-02-09
  */
 
+
 console.log("manage_orders.js loaded – refactored for CashCueTable & CashCueAppContext");
+
+function escapeHtml(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
 
@@ -119,6 +138,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       searchFields: ["symbol", "label"],   // <-- added for live search on these columns
       pagination: { enabled: true, pageSize: 5 },
       columns: [
+        { key: "id", label: "ID", sortable: true, type: "number"},
         { key: "symbol", label: "Symbol", sortable: true, type: "string" },
         { key: "label", label: "Label", sortable: true, type: "string" },
         { key: "order_type", label: "Type", sortable: true, type: "string" },
@@ -144,7 +164,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           label: "Total (€)",
           sortable: true,
           type: "number",
-          render: row => parseFloat(row.total_value || 0).toFixed(2)
+          render: row => parseFloat(row.total || 0).toFixed(2)
         },
 
         {
@@ -171,13 +191,38 @@ document.addEventListener("DOMContentLoaded", async () => {
           sortable: true,
           type: "date"
         },
-
+        {
+          key: "comment",
+          label: "Comment",
+          sortable: false,
+          align: "start",
+          render: row => {
+            if (!row.comment || row.comment.trim() === "") {
+              return '<span class="text-muted">—</span>';
+            }
+            return escapeHtml(row.comment);
+          }
+        },
+        {
+          key: "settled", 
+          label: "Settled", 
+          sortable: false, 
+          type: "boolean",
+          render: row => row.settled ? '<i class="bi bi-check-lg text-success"></i>' : ''
+        },
         {
           key: "actions",
           label: "Actions",
           sortable: false,
           html: true,
           render: row => `
+            <span class="me-2 edit-action text-primary"
+                  role="button"
+                  title="Edit / annotate order"
+                  data-id="${row.id}">
+              <i class="bi bi-pencil-square"></i>
+            </span>
+
             <span class="cancel-action ${row.status === 'CANCELLED' ? 'is-disabled' : 'is-active'}"
                   data-id="${row.id}" role="button"
                   title="${row.status === 'CANCELLED'
@@ -215,6 +260,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ============================================================
+  // EDIT / UPDATE ORDER (delegated)
+  // ============================================================
+  document.addEventListener("click", e => {
+    const editEl = e.target.closest(".edit-action");
+    if (!editEl) return;
+
+    const orderId = parseInt(editEl.dataset.id, 10);
+    const order = ordersData.find(o => o.id === orderId);
+    if (!order) return;
+
+    console.log("Edit action clicked for order:", order);
+    // Delegate to updateOrderModal.js
+    CashCue.openUpdateOrderModal(order);
+  });
+
+  // ============================================================
   // ADD / SAVE ORDER
   // ============================================================
   btnAdd?.addEventListener("click", e => {
@@ -229,41 +290,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 150);
   });
 
-  btnSave?.addEventListener("click", async e => {
-    e.preventDefault();
-    try {
-      const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
-      if (!broker_account_id) return alert("Please select a broker account.");
+// Handle form submission for adding new order
+btnSave?.addEventListener("click", async e => {
+  e.preventDefault();
+  try {
+    const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
+    if (!broker_account_id) return alert("Please select a broker account.");
 
-      const payload = {
-        broker_account_id,
-        instrument_id: document.getElementById("instrument_id").value,
-        order_type: document.getElementById("order_type").value,
-        quantity: document.getElementById("quantity").value,
-        price: document.getElementById("price").value,
-        fees: document.getElementById("fees").value || 0,
-        trade_date: document.getElementById("trade_date").value,
-        settled: document.getElementById("settled")?.checked ? 1 : 0
-      };
+    const payload = {
+      broker_account_id,
+      instrument_id: document.getElementById("instrument_id").value,
+      order_type: document.getElementById("order_type").value,
+      quantity: document.getElementById("quantity").value,
+      price: document.getElementById("price").value,
+      fees: document.getElementById("fees").value || 0,
+      trade_date: document.getElementById("trade_date").value,
+      comment: document.getElementById("comment")?.value.trim() || "",
+      settled: document.getElementById("settled")?.checked ? 1 : 0
+    };
 
-      for (const k of ["instrument_id","order_type","quantity","price","trade_date"])
-        if (!payload[k]) throw new Error(`Missing field: ${k}`);
+    for (const k of ["instrument_id","order_type","quantity","price","trade_date"])
+      if (!payload[k]) throw new Error(`Missing field: ${k}`);
 
-      const res = await fetch("/cashcue/api/addOrder.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to add order");
+    const res = await fetch("/cashcue/api/addOrder.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Failed to add order");
 
-      modal.hide();
-      loadOrders();
-    } catch (err) {
-      console.error("Error adding order:", err);
-      alert(err.message || "Error while saving order");
-    }
-  });
+    modal.hide();
+    loadOrders();
+  } catch (err) {
+    console.error("Error adding order:", err);
+    alert(err.message || "Error while saving order");
+  }
+});
+ 
+
 
   // ============================================================
   // CANCEL ORDER (delegated)
@@ -293,6 +358,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   await window.CashCueAppContext.waitForBrokerAccount();
   loadInstruments();
   loadOrders();
+
+  // ============================================================
+  // ORDER UPDATED EVENT (from updateOrderModal.js)
+  // ============================================================
+  document.addEventListener('cashcue:order-updated', () => {
+    console.log("manage_orders.js received cashcue:order-updated");
+
+    loadOrders();   // reload from API → ALWAYS safer than table-only refresh
+  });
 
   document.addEventListener("brokerAccountChanged", () => {
     console.log("manage_orders.js: brokerAccountChanged event");

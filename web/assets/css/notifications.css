@@ -1,0 +1,109 @@
+
+/* ==========================================================
+   CashCue - Global Notification System
+   Version: Centered Slide-Down
+   ========================================================== */
+
+/* ===== Container ===== */
+.global-alert-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+
+    width: 420px;
+    max-width: 92%;
+
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none; /* évite d'interférer avec la page */
+}
+
+/* ===== Alert Card ===== */
+.custom-alert {
+    background: #ffffff;
+    border-left: 6px solid;
+    border-radius: 12px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.18);
+
+    transform: translateY(-60px);
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(.16, 1, .3, 1);
+
+    pointer-events: auto; /* réactive interaction sur la carte */
+}
+
+/* Visible state */
+.custom-alert.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Hide animation */
+.custom-alert.hide {
+    transform: translateY(-60px);
+    opacity: 0;
+}
+
+/* ===== Alert Content ===== */
+.alert-content {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+/* Message zone */
+.alert-message {
+    flex: 1;
+    word-break: break-word;
+}
+
+/* Close button */
+.alert-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.alert-close:hover {
+    opacity: 1;
+}
+
+/* ===== Alert Types (Left Border Color) ===== */
+.alert-success {
+    border-color: #198754;
+}
+
+.alert-danger {
+    border-color: #dc3545;
+}
+
+.alert-warning {
+    border-color: #ffc107;
+}
+
+.alert-info {
+    border-color: #0d6efd;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 576px) {
+    .global-alert-container {
+        width: 95%;
+        top: 15px;
+    }
+
+    .custom-alert {
+        border-radius: 10px;
+    }
+}
