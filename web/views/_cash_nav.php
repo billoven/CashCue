@@ -4,6 +4,10 @@
  *
  * Expected variable (optional):
  *   $page = 'cash' | 'manage_cash'
+ * - 'cash' highlights the Overview tab
+ * - 'manage_cash' highlights the Movements tab
+ * 
+ * last modified: 2026-02-19
  */
 
 // Defensive default

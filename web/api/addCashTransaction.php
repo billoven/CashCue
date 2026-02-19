@@ -1,4 +1,15 @@
 <?php
+// This endpoint is responsible for adding a new cash transaction linked to a broker account. It expects a JSON payload with the following structure:
+/*
+{
+    "broker_account_id": 1, // ID of the broker account to link the cash transaction to
+    "amount": 100.00, // Amount of the transaction (positive for deposits, negative for withdrawals)
+    "type": "DEPOSIT", // Type of the transaction (e.g., DEPOSIT, WITHDRAWAL, FEES, ADJUSTMENT)
+    "date": "2024-06-01 14:30", // Date and time of the transaction
+    "comment": "Optional comment about the transaction",
+    "reference_id": "Optional reference ID for linking to other records (e.g., trades, external system IDs)"
+}
+*/
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
 

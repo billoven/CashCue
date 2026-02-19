@@ -27,7 +27,6 @@ console.log("manage_cash.js loaded");
 // ------------------------------------------------------------
 // State
 // ------------------------------------------------------------
-
 let cashDatePicker = null;
 let cashModal = null;
 let cashTable = null;
@@ -36,7 +35,6 @@ let currentMode = "add"; // "add" | "edit"
 // ------------------------------------------------------------
 // Business rules
 // ------------------------------------------------------------
-
 // All possible cash movement types
 const ALL_TYPES = [
   "BUY",
@@ -59,21 +57,18 @@ const MANUAL_TYPES = [
 // Computed types must be locked in UI
 const LOCKED_TYPES = ALL_TYPES.filter(t => !MANUAL_TYPES.includes(t));
 
-// ------------------------------------------------------------
-// Helpers
-// ------------------------------------------------------------
 
-/**
- * Format numeric amount with 2 decimals
- */
+// ------------------------------------------------------------
+// Format amount with 2 decimals, or placeholder if invalid
+// ------------------------------------------------------------ 
 function fmtAmount(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
-/**
- * Render actions column depending on cash type
- */
+// ------------------------------------------------------------
+// Render action buttons for each row, locking based on type
+// ------------------------------------------------------------
 function renderActions(row) {
   const type = String(row.type).toUpperCase();
   const isLocked = LOCKED_TYPES.includes(type);
@@ -97,9 +92,8 @@ function renderActions(row) {
 }
 
 // ------------------------------------------------------------
-// Table initialization
+// Initialize CashCueTable with column definitions and renderers 
 // ------------------------------------------------------------
-
 function initCashTable() {
   cashTable = new CashCueTable({
     emptyMessage: "No cash movements",
@@ -148,9 +142,8 @@ function initCashTable() {
 }
 
 // ------------------------------------------------------------
-// Data loading
+// Load cash movements for current broker account and refresh table
 // ------------------------------------------------------------
-
 async function reloadPageData() {
   console.log("CashCue: reloading cash movements");
 
@@ -167,15 +160,15 @@ async function reloadPageData() {
     cashTable.setData(rows);
 
   } catch (err) {
-    console.error("CashCue: failed to load cash movements", err);
+    console.error("Failed to load cash movements", err);
+    showAlert('danger','Failed to load cash movements: ' + err.message);
     cashTable.setData([]);
   }
 }
 
 // ------------------------------------------------------------
-// Modals (Add / Edit)
+// Add modal: clear form for new entry
 // ------------------------------------------------------------
-
 function openAddCashModal() {
   currentMode = "add";
 
@@ -192,6 +185,9 @@ function openAddCashModal() {
   cashModal.show();
 }
 
+// ------------------------------------------------------------
+// Edit modal: load cash movement data and populate form
+// ------------------------------------------------------------
 async function editCash(id) {
   currentMode = "edit";
   console.log("CashCue: editing cash movement", id);
@@ -232,45 +228,65 @@ async function editCash(id) {
 }
 
 // ------------------------------------------------------------
-// Save / Delete
+// Add or update cash movement depending on current mode
 // ------------------------------------------------------------
-
 async function saveCash() {
-  const payload = {
-    date: document.getElementById("cash_date").value,
-    type: document.getElementById("cash_type").value,
-    amount: document.getElementById("cash_amount").value,
-    comment: document.getElementById("cash_comment").value
-  };
-
-  let url = "/cashcue/api/addCashTransaction.php";
-
-  if (currentMode === "edit") {
-    payload.id = document.getElementById("cash_id").value;
-    url = "/cashcue/api/updateCashTransaction.php";
-  }
 
   try {
+
+    const brokerAccountId = await CashCueAppContext.waitForBrokerAccount();
+    console.log("manage_cash.js: saveCash brokerAccountId =", brokerAccountId);
+
+    if (!brokerAccountId) {
+      throw new Error("No broker account selected");
+    }
+
+    const payload = {
+      broker_account_id: brokerAccountId,
+      date: document.getElementById("cash_date").value,
+      type: document.getElementById("cash_type").value,
+      amount: parseFloat(document.getElementById("cash_amount").value),
+      comment: document.getElementById("cash_comment").value || null
+    };
+
+    let url = "/cashcue/api/addCashTransaction.php";
+
+    if (currentMode === "edit") {
+      payload.id = parseInt(document.getElementById("cash_id").value, 10);
+      url = "/cashcue/api/updateCashTransaction.php";
+    }
+
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
     const json = await res.json();
+
     if (!json.success) {
       throw new Error(json.error || "Unknown API error");
     }
 
     cashModal.hide();
-    reloadPageData();
+    await reloadPageData();
+
+    showAlert('success', `Cash movement ${currentMode === "add" ? "added" : "updated"} successfully.`);
 
   } catch (err) {
     console.error("CashCue: save cash failed", err);
-    alert(`Cash save failed: ${err.message}`);
+    showAlert('danger','Cash save failed: ' + err.message);
   }
+
 }
 
+// ------------------------------------------------------------
+// Delete with confirmation
+// ------------------------------------------------------------
 async function deleteCash(id) {
   if (!confirm("Delete this cash movement?")) return;
 
@@ -287,10 +303,11 @@ async function deleteCash(id) {
     }
 
     reloadPageData();
+    showAlert('success','Cash movement deleted successfully.');
 
   } catch (err) {
     console.error("CashCue: delete cash failed", err);
-    alert(`Delete failed: ${err.message}`);
+    showAlert('danger','Cash delete failed: ' + err.message);
   }
 }
 

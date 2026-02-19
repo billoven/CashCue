@@ -2,7 +2,16 @@
  * manage_instruments.js
  * =====================
  * Client-side controller for Instruments Management.
- *
+*
+* DOM Context:
+*  The DOM (Document Object Model) represents the HTML structure of the page as a tree of elements.
+*  This script manipulates the DOM by:
+*   - Selecting HTML elements (modal, form, buttons) 
+*   - Reading and writing their values and content
+*   - Attaching event listeners to respond to user interactions
+*   - Updating display attributes and styling
+*  When "DOM ready" occurs (DOMContentLoaded event), all HTML elements are loaded and safe to access. 
+*
  * Responsibilities:
  *  - Load instruments from API
  *  - Render instruments table using CashCueTable
@@ -16,20 +25,36 @@
  * Non-responsibilities:
  *  - Business rules enforcement (backend)
  *  - Physical deletion (not supported by design)
+ *
+ * Execution Flow:
+ *  1. On DOM ready, establish references to modal, form, and button elements
+ *  2. Define status transition rules, impact messages, and color mappings
+ *  3. Initialize the CashCueTable with columns for symbol, label, ISIN, type, currency, status badge, and actions
+ *  4. Fetch instruments from API and populate the table with data
+ *  5. Bind click handlers to edit buttons in the rendered table rows
+ *  6. When user clicks edit, fetch instrument details and populate the modal form
+ *  7. Setup the status dropdown with allowed transitions based on current status
+ *  8. When user clicks add, reset form and hide status controls (new instruments default to ACTIVE)
+ *  9. When user clicks save, validate form data and POST to appropriate endpoint (add or update)
+ *  10. If updating and status changed, show confirmation dialog with impact message
+ *  11. On success, hide modal, reload instruments table, and display success notification
+ *  12. On error, display error notification with failure reason
+ *
  */
-
+ 
+// --------------------------------------------------
+// DOMContentLoaded - main entry point
+// --------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
 
   // --------------------------------------------------
   // Modal & form references
   // --------------------------------------------------
-  const modalEl = document.getElementById("instrumentModal");
-  const modal   = new bootstrap.Modal(modalEl);
-  const form    = document.getElementById("instrumentForm");
-
-  const btnAdd      = document.getElementById("btnAddInstrument");
-  const btnSave     = document.getElementById("saveInstrument");
-
+  const modalEl          = document.getElementById("instrumentModal");
+  const modal            = new bootstrap.Modal(modalEl);
+  const form             = document.getElementById("instrumentForm");
+  const btnAdd           = document.getElementById("btnAddInstrument");
+  const btnSave          = document.getElementById("saveInstrument");
   const statusGroup      = document.getElementById("statusGroup");
   const statusSelect     = document.getElementById("status");
   const statusImpactHint = document.getElementById("statusImpactHint");
@@ -42,7 +67,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentInstrumentStatus = null;
 
   // --------------------------------------------------
-  // Status transitions & UI metadata
+  // Status management configuration
+  // Defines allowed status transitions, user-facing impact messages for each transition, 
+  // and corresponding badge colors for display in the table
   // --------------------------------------------------
   const STATUS_TRANSITIONS = {
     ACTIVE:     ["INACTIVE", "SUSPENDED", "DELISTED"],
@@ -144,12 +171,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     } catch (err) {
       console.error("Error loading instruments:", err);
+      sowAlert("danger", "Failed to load instruments.");
+
       instrumentsTable.setData([]);
     }
   }
 
   // --------------------------------------------------
   // Bind edit buttons after table render
+  // Must be called after each table data update to ensure buttons are interactive
   // --------------------------------------------------
   function bindEditButtons() {
     document.querySelectorAll(".edit-btn").forEach(btn =>
@@ -159,6 +189,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --------------------------------------------------
   // Edit instrument
+  // Fetches instrument details, populates the modal form, 
+  // sets up status options based on current status, and shows the modal for editing
   // --------------------------------------------------
   async function handleEditInstrument(e) {
     const id = e.currentTarget.dataset.id;
@@ -168,6 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const json = await res.json();
 
       if (json.status !== "success") {
+        show
         throw new Error(json.message);
       }
 
@@ -192,12 +225,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     } catch (err) {
       console.error("Instrument load error:", err);
-      alert("Failed to load instrument details.");
+      showAlert("danger", "Failed to load instrument details.");
     }
   }
 
   // --------------------------------------------------
-  // Status select setup
+  // Setup status select options based on current status
+  // Displays allowed status transitions in the dropdown 
+  // and shows impact hints when selection changes
   // --------------------------------------------------
   function setupStatusSelect(currentStatus) {
     statusGroup.style.display = "block";
@@ -229,7 +264,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --------------------------------------------------
   // Add instrument
-  // --------------------------------------------------
+  // Resets form, loads instruments dropdown, sets modal title, 
+  // and shows the modal when the add button is clicked
+  // ------------------------------------------
   btnAdd.addEventListener("click", () => {
     form.reset();
     document.getElementById("instrumentId").value = "";
@@ -278,19 +315,26 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const json = await res.json();
-      if (json.status !== "success") throw new Error(json.message);
+      if (json.status !== "success") {
+        showAlert("danger", json.error || "Failed to save instrument.");
+        throw new Error(json.message);
+    }
 
       modal.hide();
       await loadInstruments();
+      showAlert("success", `Instrument ${id ? "updated" : "added"} successfully.`);
 
     } catch (err) {
       console.error("Save error:", err);
-      alert("Failed to save instrument.");
+      showAlert("danger", err.message || "Failed to save instrument.");
     }
   });
 
   // --------------------------------------------------
-  // Boot
+  // Initial setup: attach event listeners and initialize the table
+  // Sets up the click listener for the add button, 
+  // change listener for the status select, 
+  // initializes the CashCueTable, and loads the initial data.
   // --------------------------------------------------
   initInstrumentsTable();
   loadInstruments();

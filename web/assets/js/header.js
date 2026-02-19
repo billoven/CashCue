@@ -147,6 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
             console.error("CashCue: failed to load broker accounts", err);
+            showAlert("danger", "Failed to load broker accounts");
             select.innerHTML = `<option>Error loading accounts</option>`;
         });
 

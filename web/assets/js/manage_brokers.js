@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     commentInput.value = '';
   }
 
-  function alertWarning(msg) { showAlert('warning', msg); }
 
   // toogleInitialDeposit shows/hides the initial deposit field 
   // based on the cash account checkbox
@@ -110,10 +109,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modal.show();
   }
-
-  /* ============================================================
-     INITIALIZE CASHCUE TABLE
-  ============================================================ */
+  // ------------------------------------------------
+  // initBrokersTable initializes the CashCueTable with appropriate columns and settings
+  // It defines how each column should be rendered, including custom rendering for the cash account status and action buttons.
+  // The table is configured to support pagination and sorting on relevant columns.
+  // ------------------------------------------------
   function initBrokersTable() {
 
     brokersTable = new CashCueTable({
@@ -162,9 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* ============================================================
-     LOAD BROKERS
-  ============================================================ */
+  // ------------------------------------------------
+  // loadBrokers fetches the list of brokers from the server and populates the CashCueTable
+  // It handles any errors that may occur during the fetch operation and ensures the table is updated accordingly.
+  // ------------------------------------------------
   async function loadBrokers() {
     try {
       const res = await fetch('/cashcue/api/getBrokers.php');
@@ -172,76 +173,119 @@ document.addEventListener('DOMContentLoaded', () => {
       brokersTable.setData(data ?? []);
     } catch (err) {
       console.error('Error loading brokers:', err);
+      showAlert('danger', 'Failed to load brokers.');
       brokersTable.setData([]);
     }
   }
 
-  /* ============================================================
-     DELETE BROKER
-  ============================================================ */
-  async function deleteBroker(id) {
-    if (!confirm('Are you sure you want to delete this broker?')) return;
+  // ------------------------------------------------
+  // deleteBroker handles the deletion of a broker account
+  // It prompts the user for confirmation, sends a delete request to the server, and refreshes the table upon success.
+  // ------------------------------------------------
+  async function deleteBroker(broker) {
+
+    if (!broker || !broker.id) {
+      return showAlert('warning', 'Invalid broker data.');
+    }
+
+    const confirmationMessage = `
+  Delete broker account?
+
+  Name: ${broker.name}
+  Account number: ${broker.account_number}
+  Account type: ${broker.account_type}
+
+  This action cannot be undone.
+  `;
+
+    if (!confirm(confirmationMessage)) return;
 
     try {
       const res = await fetch('/cashcue/api/deleteBroker.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `id=${id}`
+        body: `id=${encodeURIComponent(broker.id)}`
       });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+
       const result = await res.json();
+
       if (result.success) {
         showAlert('success', result.message || 'Broker deleted.');
         await loadBrokers();
       } else {
         showAlert('danger', result.message || 'Delete failed.');
       }
+
     } catch (err) {
       console.error('Error deleting broker:', err);
       showAlert('danger', 'Error deleting broker.');
     }
   }
 
-  /* ============================================================
-     EVENT DELEGATION
-  ============================================================ */
+
+  // ------------------------------------------------
+  // Event delegation for edit and delete buttons
+  // Listens for clicks on the edit and delete buttons within the table 
+  // and triggers the appropriate actions (open edit modal or delete broker).
+  // ------------------------------------------------
   document.addEventListener('click', async e => {
 
-    const editBtn = e.target.closest('.editBrokerBtn');
+    const editBtn   = e.target.closest('.editBrokerBtn');
     const deleteBtn = e.target.closest('.deleteBrokerBtn');
 
-    if (editBtn) {
-      const id = editBtn.dataset.id;
-      try {
-        const res = await fetch(`/cashcue/api/getBrokers.php?id=${id}`);
-        const broker = await res.json();
-        if (!broker || !broker.id) return alertWarning('Broker not found.');
-        openEditModal(broker);
-      } catch (err) {
-        console.error('Error fetching broker:', err);
-        showAlert('danger', 'Failed to load broker.');
-      }
-    }
+    if (!editBtn && !deleteBtn) return;
 
-    if (deleteBtn) deleteBroker(deleteBtn.dataset.id);
+    const id = (editBtn || deleteBtn).dataset.id;
+
+    try {
+      const res = await fetch(`/cashcue/api/getBrokers.php?id=${id}`);
+
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+
+      const broker = await res.json();
+
+      if (!broker || !broker.id) {
+        return showAlert('warning', 'Broker account with this ID not found.');
+      }
+
+      if (editBtn) {
+        openEditModal(broker);
+      }
+
+      if (deleteBtn) {
+        deleteBroker(broker);   
+      }
+
+    } catch (err) {
+      console.error('Error fetching broker:', err);
+      showAlert('danger', 'Failed to load broker.');
+    }
   });
 
-  /* ============================================================
-     FORM SUBMIT
-  ============================================================ */
+
+  // ------------------------------------------------
+  // Form submission handler for adding/editing brokers
+  // Validates the comment field, constructs form data, and sends it to the appropriate API endpoint based on the mode (add or edit).
+  // Handles the response and updates the UI accordingly.
+  // ------------------------------------------------
   form.addEventListener('submit', async e => {
     e.preventDefault();
 
-    if (!commentInput.value.trim()) return alertWarning('Comment is mandatory.');
-
+    if (!commentInput.value.trim()) return showAlert('warning', 'Comment is required for audit purposes.');
+    
     const formData = new FormData(form);
     formData.set('has_cash_account', hasCashAccountInput.checked ? 1 : 0);
     formData.set('initial_deposit', initialDepositInput.value || 0);
 
     if (editMode) formData.set('id', currentBrokerId);
 
-    console.log('Submitting form with data:', Object.fromEntries(formData.entries()));
-
-    const url = editMode ? '/cashcue/api/updateBroker.php' : '/cashcue/api/addBroker.php';
+      const url = editMode ? '/cashcue/api/updateBroker.php' : '/cashcue/api/addBroker.php';
 
     try {
       const res = await fetch(url, { method: 'POST', body: formData });
@@ -259,9 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /* ============================================================
-     INITIALIZATION
-  ============================================================ */
+  // ------------------------------------------------
+  // Initial setup: attach event listeners and initialize the table
+  // Sets up the click listener for the add button, change listener for the cash account checkbox, initializes the CashCueTable, and loads the initial data.
+  // ------------------------------------------------
   addBtn.addEventListener('click', openCreateModal);
   hasCashAccountInput.addEventListener('change', toggleInitialDeposit);
 

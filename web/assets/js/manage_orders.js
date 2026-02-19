@@ -55,6 +55,11 @@
 
 console.log("manage_orders.js loaded – refactored for CashCueTable & CashCueAppContext");
 
+// ------------------------------------------------------------
+// UTILITY FUNCTIONS
+// This function safely escapes HTML special characters to prevent XSS attacks when rendering user-generated 
+// content (like comments) in the orders table.
+// ------------------------------------------------------------
 function escapeHtml(str) {
   if (str == null) return "";
   return String(str)
@@ -65,6 +70,9 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+// ------------------------------------------------------------
+// MAIN LOGIC
+// ------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
 
   // ------------------------------------------------------------
@@ -73,7 +81,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const modalEl = document.getElementById("orderModal");
   const modal = new bootstrap.Modal(modalEl);
   const form = document.getElementById("orderForm");
-
   const btnAdd = document.getElementById("btnAddOrder");
   const btnSave = document.getElementById("saveOrder");
   const searchInput = document.getElementById("searchOrder");
@@ -82,9 +89,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   let ordersTable = null; // ✅ Persistent CashCueTable instance
   let ordersData = [];
 
-  // ============================================================
-  // FLATPICKR
-  // ============================================================
+  // ------------------------------------------------------------
+  // INIT FLATPICKR (trade date) – only once when modal is first shown
+  // We initialize the flatpickr instance for the trade date input only once, the first time the modal is shown.
+  // This optimizes performance by avoiding unnecessary re-initializations on subsequent modal openings.
+  // ---------------------------------------------
   modalEl.addEventListener("shown.bs.modal", () => {
     if (!tradeDatePicker) {
       tradeDatePicker = flatpickr("#trade_date", {
@@ -125,6 +134,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                  });
     } catch (err) {
       console.error("Error loading instruments:", err);
+      showAlert("danger", err.message || "Failed to load instruments.");
     }
   }
 
@@ -237,9 +247,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // ============================================================
-  // LOAD ORDERS DATA
-  // ============================================================
+  // -----------------------------------------------------------
+  // LOAD ORDERS
+  // This function fetches the orders for the selected broker account from the API 
+  // and updates the CashCueTable with the new data.
+  // -----------------------------------------------------------
   async function loadOrders() {
     try {
       const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
@@ -247,21 +259,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const resp = await fetch(`/cashcue/api/getOrders.php?broker_account_id=${broker_account_id}`);
       const json = await resp.json();
-      if (json.status !== "success") throw new Error(json.message);
+      if (json.status !== "success") {
+        throw new Error(json.message || "Failed to load orders");
+        showAlert("danger", json.message || "Failed to load orders.");
+      } 
       ordersData = json.data || [];
-
-      console.log("▶ Orders data:", ordersData);
 
       if (!ordersTable) initOrdersTable();
       ordersTable.setData(ordersData); // ✅ update table rows
     } catch (err) {
       console.error("Error loading orders:", err);
+      showAlert("danger", err.message || "Failed to load orders.");
     }
   }
 
-  // ============================================================
-  // EDIT / UPDATE ORDER (delegated)
-  // ============================================================
+  // -----------------------------------------------------------
+  // EDIT ORDER (delegated to updateOrderModal.js)
+  // This click listener is attached to the document and uses event delegation to handle clicks on edit buttons within the orders table.
+  // When an edit button is clicked, it finds the corresponding order data and opens the update order modal with that data.
+  // -----------------------------------------------------------
   document.addEventListener("click", e => {
     const editEl = e.target.closest(".edit-action");
     if (!editEl) return;
@@ -270,14 +286,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const order = ordersData.find(o => o.id === orderId);
     if (!order) return;
 
-    console.log("Edit action clicked for order:", order);
     // Delegate to updateOrderModal.js
     CashCue.openUpdateOrderModal(order);
   });
 
-  // ============================================================
-  // ADD / SAVE ORDER
-  // ============================================================
+  // -----------------------------------------------------------
+  // ADD ORDER
+  // When the "Add Order" button is clicked, this listener resets the form, 
+  // clears the trade date picker, sets the modal title, 
+  // and shows the modal for adding a new order.
+  // -----------------------------------------------------------
   btnAdd?.addEventListener("click", e => {
     e.preventDefault();
     form.reset();
@@ -290,49 +308,62 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 150);
   });
 
-// Handle form submission for adding new order
-btnSave?.addEventListener("click", async e => {
-  e.preventDefault();
-  try {
-    const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
-    if (!broker_account_id) return alert("Please select a broker account.");
+  // -----------------------------------------------------------
+  // SAVE ORDER (Add or Update)
+  // This listener handles the form submission for adding a new order.
+  // It gathers the form data, validates it, and sends it to the API.
+  // On success, it hides the modal and reloads the orders.
+  // -----------------------------------------------------------
+  btnSave?.addEventListener("click", async e => {
+    e.preventDefault();
+    try {
+      const broker_account_id = window.CashCueAppContext.getBrokerAccountId();
+      if (!broker_account_id) return alert("Please select a broker account.");
 
-    const payload = {
-      broker_account_id,
-      instrument_id: document.getElementById("instrument_id").value,
-      order_type: document.getElementById("order_type").value,
-      quantity: document.getElementById("quantity").value,
-      price: document.getElementById("price").value,
-      fees: document.getElementById("fees").value || 0,
-      trade_date: document.getElementById("trade_date").value,
-      comment: document.getElementById("comment")?.value.trim() || "",
-      settled: document.getElementById("settled")?.checked ? 1 : 0
-    };
+      const payload = {
+        broker_account_id,
+        instrument_id: document.getElementById("instrument_id").value,
+        order_type: document.getElementById("order_type").value,
+        quantity: document.getElementById("quantity").value,
+        price: document.getElementById("price").value,
+        fees: document.getElementById("fees").value || 0,
+        trade_date: document.getElementById("trade_date").value,
+        comment: document.getElementById("comment")?.value.trim() || "",
+        settled: document.getElementById("settled")?.checked ? 1 : 0
+      };
 
-    for (const k of ["instrument_id","order_type","quantity","price","trade_date"])
-      if (!payload[k]) throw new Error(`Missing field: ${k}`);
+      for (const k of ["instrument_id","order_type","quantity","price","trade_date"]) {
+        if (!payload[k]) {  
+          showAlert("danger", `Please fill in the required field: ${k.replace("_", " ")}`); 
+          throw new Error(`Missing field: ${k}`);
+        }
+      }
+      const res = await fetch("/cashcue/api/addOrder.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!json.success) {
+        showAlert("danger", json.error || "Failed to add order.");
+        throw new Error(json.error || "Failed to add order");
+      }
+      modal.hide();
+      loadOrders();
+    } catch (err) {
+      console.error("Error adding order:", err);
+      showAlert("danger", err.message || "Error while saving order.");
+    }
+  });
 
-    const res = await fetch("/cashcue/api/addOrder.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error || "Failed to add order");
-
-    modal.hide();
-    loadOrders();
-  } catch (err) {
-    console.error("Error adding order:", err);
-    alert(err.message || "Error while saving order");
-  }
-});
- 
-
-
-  // ============================================================
-  // CANCEL ORDER (delegated)
-  // ============================================================
+  // -----------------------------------------------------------
+  // CANCEL ORDER
+  // This click listener is attached to the document and uses event delegation 
+  // to handle clicks on cancel buttons within the orders table.
+  // When a cancel button is clicked, it confirms the action with the user, 
+  // and if confirmed, it sends a request to the API to cancel the order.
+  // On success, it reloads the orders.
+  // -----------------------------------------------------------
   document.addEventListener("click", e => {
     const el = e.target.closest(".cancel-action");
     if (!el || el.classList.contains("is-disabled")) return;
@@ -345,29 +376,37 @@ btnSave?.addEventListener("click", async e => {
       .then(json => {
         if (!json.success) throw new Error(json.error || "Cancel failed");
         loadOrders();
+        showAlert("success", "Order cancelled successfully.");
       })
       .catch(err => {
         console.error("Error cancelling order:", err);
-        alert(err.message || "Error cancelling order");
+        showAlert("danger", err.message || "Error cancelling order.");
       });
   });
 
-  // ============================================================
-  // BROKER ACCOUNT READY / CHANGED
-  // ============================================================
+  // ------------------------------------------------------------
+  // INITIAL LOAD
+  // Waits for the broker account to be loaded in the app context, 
+  // then loads the instruments and orders for that account.
+  // ------------------------------------------------------------
   await window.CashCueAppContext.waitForBrokerAccount();
   loadInstruments();
   loadOrders();
 
-  // ============================================================
-  // ORDER UPDATED EVENT (from updateOrderModal.js)
-  // ============================================================
+  // ------------------------------------------------------------
+  // EVENT LISTENERS
+  // Listens for custom events to reload orders when updates occur or when the broker account changes.
+  // ------------------------------------------------------------ 
   document.addEventListener('cashcue:order-updated', () => {
     console.log("manage_orders.js received cashcue:order-updated");
 
     loadOrders();   // reload from API → ALWAYS safer than table-only refresh
   });
 
+  // ------------------------------------------------------------
+  // Listen for broker account changes to reload instruments and orders for the new account.
+  // This ensures that when the user switches to a different broker account, the displayed instruments and orders are updated accordingly.
+  // ------------------------------------------------------------
   document.addEventListener("brokerAccountChanged", () => {
     console.log("manage_orders.js: brokerAccountChanged event");
     loadInstruments();

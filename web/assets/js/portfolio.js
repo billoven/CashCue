@@ -23,16 +23,14 @@
 
 console.log("portfolio.js loaded");
 
-/* ============================================================
- * HOLDINGS TABLE (CashCueTable)
- * ============================================================ */
-
+// ------------------------------------------------------------
+// GLOBAL VARIABLES
+// ------------------------------------------------------------ 
 let holdingsTable = null;
 
-/**
- * Initialize CashCueTable for current holdings.
- * Table structure is static; data is injected dynamically.
- */
+// ------------------------------------------------------------
+// HOLDINGS TABLE (CashCueTable)
+// ------------------------------------------------------------
 function initHoldingsTable() {
   holdingsTable = new CashCueTable({
     containerId: "holdingsTableContainer",
@@ -93,16 +91,15 @@ function initHoldingsTable() {
   });
 }
 
-/**
- * Load holdings from API and inject them into CashCueTable.
- */
+// ------------------------------------------------------------
+// Load holdings data from API and populate the table.
+// Triggered on page load and when broker account changes.
+// ------------------------------------------------------------
 async function loadHoldings() {
   if (!holdingsTable) return;
 
   const brokerId = window.CashCueAppContext.getBrokerAccountId();
   if (!brokerId) return;
-
-  console.log("Loading holdings for broker_account_id:", brokerId);
 
   try {
     const res = await fetch(`/cashcue/api/getHoldings.php?broker_account_id=${brokerId}`);
@@ -111,22 +108,22 @@ async function loadHoldings() {
     if (json.status !== "success") {
       console.error("Holdings API error:", json.message);
       holdingsTable.setData([]);
+      showAlert("danger", `Failed to load holdings: ${json.message || "Unknown error"}`);
       return;
     }
 
-    console.log("Holdings data:", json.data);
     holdingsTable.setData(json.data);
 
   } catch (err) {
     console.error("Holdings fetch error:", err);
+    showAlert("danger", "Failed to load holdings. Please try again.");
     holdingsTable.setData([]);
   }
 }
 
-/* ============================================================
- * PORTFOLIO HISTORY CHART (ECharts) — UNCHANGED
- * ============================================================ */
-
+// ------------------------------------------------------------
+// PORTFOLIO HISTORY CHART
+// ------------------------------------------------------------
 let portfolioChartInstance = null;
 
 /**
@@ -151,11 +148,11 @@ async function loadPortfolioHistory() {
     const json = await res.json();
 
     if (json.status !== "success") {
+      showAlert("danger", `Failed to load portfolio history: ${json.message || "Unknown error"}`);
       throw new Error(json.message || "API error");
     }
 
     const data = json.data;
-    console.log("Portfolio history data:", data);
 
     const dates = data.map(r => r.date);
     const dailyInvested = data.map(r => parseFloat(r.daily_invested));
@@ -240,14 +237,14 @@ async function loadPortfolioHistory() {
     portfolioChartInstance.setOption(option);
 
   } catch (err) {
+    showAlert("danger", "Failed to load portfolio history. Please try again.");
     console.error("Portfolio history fetch error:", err);
   }
 }
 
-/* ============================================================
- * INITIALIZATION & EVENTS
- * ============================================================ */
-
+// ------------------------------------------------------------
+// INITIALIZATION
+// ------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
   // Wait for broker_account_id to be available
   await window.CashCueAppContext.waitForBrokerAccount();

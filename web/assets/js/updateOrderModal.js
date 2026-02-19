@@ -59,8 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
   saveBtn.addEventListener('click', onSubmitUpdateOrder);
 });
 
+
 // ------------------------------------------------------------
-// Open modal & populate fields
+// Open modal with order data
+// Exposed globally for invocation from order list
 // ------------------------------------------------------------
 function openUpdateOrderModal(order) {
   originalOrderData = { ...order };
@@ -77,6 +79,7 @@ function openUpdateOrderModal(order) {
 
 // ------------------------------------------------------------
 // Detect changes compared to original
+// Returns an object with only changed fields
 // ------------------------------------------------------------
 function detectChanges(payload, original) {
   const changes = {};
@@ -92,6 +95,7 @@ function detectChanges(payload, original) {
 
 // ------------------------------------------------------------
 // Handle save click
+// Validates changes, enforces business rules, and submits update
 // ------------------------------------------------------------
 function onSubmitUpdateOrder(e) {
   e.preventDefault();
@@ -116,6 +120,9 @@ function onSubmitUpdateOrder(e) {
 
   // ------------------------------------------------------------
   // ENFORCE SETTLEMENT BUSINESS RULE
+  // Settled can only transition from 0 → 1. Reverting 1 → 0 is not allowed.
+  // Settled field indicates execution status and financial finality. 
+  // Reverting an executed order would break cash integrity.
   // ------------------------------------------------------------
   if ('settled' in changes) {
     const oldValue = Number(originalOrderData.settled ?? 0);
@@ -135,6 +142,9 @@ function onSubmitUpdateOrder(e) {
 
   // ------------------------------------------------------------
   // Determine update mode
+  // - comment_only: Only comment changed
+  // - settled_only: Only settled changed
+  // - financial_update: Quantity/Price/Fees changed (with or without comment/settled)
   // ------------------------------------------------------------
   let mode = 'financial_update';
 
@@ -146,6 +156,9 @@ function onSubmitUpdateOrder(e) {
 
   // ------------------------------------------------------------
   // Confirmation per mode
+  // - comment_only: "Confirm comment update? (no financial impact)"
+  // - settled_only: "Confirm settlement validation?"
+  // - financial_update: "Confirm order update? This will recalculate cash balance."
   // ------------------------------------------------------------
   let confirmMsg = '';
 
@@ -172,6 +185,8 @@ function onSubmitUpdateOrder(e) {
 
 // ------------------------------------------------------------
 // Submit to backend
+// Handles API response, shows alerts, and triggers order list refresh
+// Backend will determine which fields to update based on payload and mode
 // ------------------------------------------------------------
 function submitUpdate(payload, mode) {
 
@@ -216,6 +231,7 @@ function submitUpdate(payload, mode) {
 
 // ------------------------------------------------------------
 // Expose globally
+// Allows invocation from order list without module bundler
 // ------------------------------------------------------------
 window.CashCue = window.CashCue || {};
 window.CashCue.openUpdateOrderModal = openUpdateOrderModal;

@@ -3,6 +3,14 @@ require_once __DIR__ . '/../config/Database.php';
 
 header('Content-Type: application/json');
 
+// This endpoint is responsible for adding a new cash account linked to a broker account. It expects a JSON payload with the following structure:
+/*
+{
+    "broker_account_id": 1, // ID of the broker account to link the cash account to
+    "name": "My Cash Account", // Name of the cash account
+    "initial_balance": 1000.00 // Initial balance for the cash account (optional, defaults to 0.00)
+}
+*/ 
 try {
     $data = json_decode(file_get_contents('php://input'), true);
 

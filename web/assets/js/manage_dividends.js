@@ -30,8 +30,8 @@ let dividendsTable;
 let dividendsData = [];
 
 // ------------------------------------------------------------
-// DOM references
-// ------------------------------------------------------------
+// DOM Elements
+// ------------------------------------------------------------ 
 const modalEl = document.getElementById('dividendModal');
 const form    = document.getElementById('dividendForm');
 const addBtn  = document.getElementById('addDividendBtn');
@@ -43,7 +43,7 @@ const taxesField  = document.getElementById('taxes_withheld');
 const amountField = document.getElementById('amount');
 
 // ------------------------------------------------------------
-// Utilities
+// Helper: format amount to 4 decimals, with fallback to '0.0000'
 // ------------------------------------------------------------
 function fmtAmount(value) {
     const n = parseFloat(value);
@@ -52,6 +52,7 @@ function fmtAmount(value) {
 
 // ------------------------------------------------------------
 // Auto-calculate net amount (gross - taxes)
+// Triggered on input in gross or taxes fields
 // ------------------------------------------------------------
 [grossField, taxesField].forEach(field => {
     field.addEventListener('input', () => {
@@ -64,27 +65,44 @@ function fmtAmount(value) {
 // ------------------------------------------------------------
 // Load instruments dropdown
 // Rule: all instruments EXCEPT ARCHIVED
+// Minimal error handling focused on API return control
 // ------------------------------------------------------------
 async function loadInstrumentsDropdown() {
     const instrumentSelect = document.getElementById('instrument_id');
     instrumentSelect.innerHTML = '';
 
-    const res  = await fetch('/cashcue/api/getInstruments.php');
-    const json = await res.json();
-    const instruments = json.data ?? json;
+    try {
+        const res  = await fetch('/cashcue/api/getInstruments.php');
+        const json = await res.json();
 
-    instruments
-        .filter(i => i.status !== 'ARCHIVED')
-        .forEach(i => {
-            const opt = document.createElement('option');
-            opt.value = i.id;
-            opt.textContent = `${i.symbol} - ${i.label}`;
-            instrumentSelect.appendChild(opt);
-        });
+        // 🔐 API contract validation (ESSENTIAL)
+        if (json.status !== "success") {
+            throw new Error(json.message || "API returned error status");
+        }
+
+        if (!Array.isArray(json.data)) {
+            throw new Error("Invalid API payload (data is not an array)");
+        }
+
+        json.data
+            .filter(i => i.status !== 'ARCHIVED')
+            .forEach(i => {
+                const opt = document.createElement('option');
+                opt.value = i.id;
+                opt.textContent = `${i.symbol} - ${i.label}`;
+                instrumentSelect.appendChild(opt);
+            });
+
+    } catch (error) {
+        console.error("loadInstrumentsDropdown:", error);
+        showAlert("danger", `Failed to load instruments: ${error.message}`);
+    }
 }
 
+
 // ------------------------------------------------------------
-// Load dividends (broker-context aware)
+// Load dividends for selected broker account and populate CashCueTable
+// Uses CashCueAppContext to get current broker account ID
 // ------------------------------------------------------------
 async function loadDividends() {
     try {
@@ -115,35 +133,50 @@ async function loadDividends() {
 
     } catch (err) {
         console.error(err);
+        showAlert('danger', `Failed to load dividends: ${err.message}`);
         dividendsTable.setData([]);
     }
 }
 
 // ------------------------------------------------------------
 // Cancel dividend (immutable reversal model)
+// Prompts user for confirmation, then calls API to cancel dividend by ID   
 // ------------------------------------------------------------
 async function cancelDividend(id) {
     if (!confirm(
         "Cancelling this dividend will create a cash reversal.\n\nContinue?"
     )) return;
 
-    const res = await fetch('/cashcue/api/cancelDividend.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-    });
+    try {
+        const res = await fetch('/cashcue/api/cancelDividend.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
 
-    const json = await res.json();
-    if (!json.success) {
-        alert(json.error);
-        return;
+        if (!res.ok) {
+            throw new Error(`HTTP error ${res.status}`);
+        }
+
+        const json = await res.json();
+
+        if (!json.success) {
+            showAlert("danger", json.error || "Failed to cancel dividend.");
+            return;
+        }
+
+        await loadDividends();
+        showAlert("success", "Dividend cancelled successfully.");
+    } catch (error) {
+        console.error("cancelDividend error:", error);
+        showAlert("danger", `Error cancelling dividend: ${error.message}`);
     }
-
-    await loadDividends();
 }
+
 
 // ------------------------------------------------------------
 // CashCueTable actions renderer
+// Renders action buttons for each row, with conditional disabling based on dividend status
 // ------------------------------------------------------------
 function renderActions(row) {
     const disabled = row.status === 'CANCELLED';
@@ -162,6 +195,7 @@ function renderActions(row) {
 
 // ------------------------------------------------------------
 // Table initialization
+// Defines the columns and settings for the CashCueTable, including custom renderers for certain fields and enabling pagination and sorting where appropriate
 // ------------------------------------------------------------
 function initDividendsTable() {
     dividendsTable = new CashCueTable({
@@ -247,6 +281,7 @@ function initDividendsTable() {
 
 // ------------------------------------------------------------
 // Event delegation (actions column)
+// Listens for clicks on the cancel action buttons within the table and triggers the cancelDividend function with the appropriate ID, while preventing interaction with already cancelled dividends
 // ------------------------------------------------------------
 document.addEventListener('click', e => {
     const el = e.target.closest('.cancel-action');
@@ -256,6 +291,7 @@ document.addEventListener('click', e => {
 
 // ------------------------------------------------------------
 // Add dividend modal
+// Resets form, loads instruments dropdown, sets modal title, and shows the modal when the add button is clicked
 // ------------------------------------------------------------
 addBtn.addEventListener('click', async () => {
     form.reset();
@@ -268,7 +304,8 @@ addBtn.addEventListener('click', async () => {
 });
 
 // ------------------------------------------------------------
-// Save dividend
+// Save dividend (form submission)
+// Validates broker account selection, constructs payload from form data, sends it to the API, and handles the response by either showing an error or reloading the dividends table and hiding the modal
 // ------------------------------------------------------------
 saveBtn.addEventListener('click', async e => {
     e.preventDefault();
@@ -299,16 +336,19 @@ saveBtn.addEventListener('click', async e => {
 
     const json = await res.json();
     if (!json.success) {
-        alert(json.error);
+        showAlert("danger", json.error || "Failed to add dividend.");
         return;
     }
 
     dividendModal.hide();
     await loadDividends();
+    showAlert("success", "Dividend added successfully.");
 });
 
 // ------------------------------------------------------------
-// Initialization
+// Initial setup: attach event listeners and initialize the table
+// Sets up the click listener for the add button, change listener for the cash account checkbox, initializes the CashCueTable, and loads the initial data.
+// Also listens for broker account changes to reload dividends accordingly.
 // ------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
     dividendModal = new bootstrap.Modal(modalEl);

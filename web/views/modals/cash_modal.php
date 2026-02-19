@@ -1,4 +1,20 @@
-<div class="modal fade" id="cashModal" tabindex="-1">
+<!-- Modal for adding/editing cash movements -->
+ <!--
+  Expected fields:
+  - cash_id (hidden, for edits)
+  - cash_date (datetime)
+  - cash_type (DEPOSIT, WITHDRAWAL, FEES, ADJUSTMENT)
+  - cash_amount (decimal)
+  - cash_comment (text)
+
+  On save:
+  - Validate inputs
+  - Send AJAX request to add/edit cash transaction
+  - On success, refresh cash transactions list and recalculate cash balance
+
+  last modified: 2026-02-19
+-->
+ <div class="modal fade" id="cashModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
 

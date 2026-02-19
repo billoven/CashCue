@@ -1,7 +1,15 @@
 <?php
+// ==============================
+// This API endpoint allows you to add a dividend record for a specific broker account and instrument. It also handles the creation of a corresponding cash transaction if the broker account has a linked cash account. The endpoint expects JSON input with the necessary fields to create the dividend and cash transaction records in the database.
+// The required fields are broker_account_id, instrument_id, and payment_date. The amount can either be provided directly or calculated from gross_amount and taxes_withheld. If the broker account has a cash account, a cash transaction of type 'DIVIDEND' will be created with the net amount (amount) on the payment date. The current balance of the cash account will also be updated accordingly.
+// The endpoint returns a JSON response indicating success or failure, along with the ID of the newly created dividend record if successful.
+// ==============================
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json; charset=utf-8');
 
+// ==============================
+// Input handling and validation
+// ==============================
 try {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || !is_array($input)) {
@@ -93,8 +101,12 @@ try {
     echo json_encode(['success' => true, 'dividend_id' => $dividend_id]);
 
 } catch (Exception $e) {
-    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    // Rollback transaction if something went wrong
+    // We check if $pdo is set and if we're in a transaction before attempting to roll back, to avoid errors in case the connection failed or the transaction was never started.
+     if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);    
 }
 

@@ -1,4 +1,10 @@
-/// assets/js/dashboard.js
+// dashboard.js
+// ------------------------------------------------------------
+// This file contains JavaScript logic specific to the dashboard page.
+// It handles loading and rendering of realtime prices, portfolio summary, and recent orders.
+// It also manages interactions like row clicks for charts and updates on broker account change.
+// The code is organized into functions for clarity and maintainability.
+// ------------------------------------------------------------
 
 console.log("dashboard.js loaded");
 
@@ -7,10 +13,11 @@ console.log("dashboard.js loaded");
 // ---------------------------------------------------
 let realtimeTable = null;
 
-/**
- * Initialize Realtime Prices table (once).
- * Sorting and pagination are delegated to CashCueTable.
- */
+// ---------------------------------------------------
+// Initializes the realtime prices table with column definitions and click handlers.
+// This function is called once on DOM ready to set up the table structure.
+// The actual data is loaded separately in loadRealtimePrices() to allow for dynamic reloading on broker change.
+// ---------------------------------------------------
 function initRealtimePricesTable() {
   realtimeTable = new CashCueTable({
     containerId: "realtimeTableContainer",
@@ -85,10 +92,12 @@ function initRealtimePricesTable() {
   });
 }
 
-/**
- * Load realtime instrument prices.
- * Fetches data and delegates rendering to CashCueTable.
- */
+// ---------------------------------------------------
+// Load realtime prices for the selected broker account
+// This function is called on initial load and whenever the broker account changes.
+// It fetches data from the API and updates the CashCueTable with new data.
+// It also handles loading states and error messages.
+// ---------------------------------------------------
 function loadRealtimePrices(accountId) {
   const container = document.getElementById("realtimeTableContainer");
   if (!container || !realtimeTable) return;
@@ -114,13 +123,16 @@ function loadRealtimePrices(accountId) {
     })
     .catch(err => {
       console.error("Realtime prices load error:", err);
+      showAlert
       container.innerHTML =
         "<p class='text-danger'>Failed to load realtime prices.</p>";
     });
 }
 
 // ---------------------------------------------------
-// Helpers
+// Reload all dashboard data (summary, history, prices, orders) for the current broker account.
+// This is called on initial load and whenever the broker account 
+// changes to ensure all displayed data is up to date.
 // ---------------------------------------------------
 function reloadDashboardData() {
   const accountId = window.CashCueAppContext.getBrokerAccountId();
@@ -130,8 +142,6 @@ function reloadDashboardData() {
     return;
   }
 
-  console.log("Dashboard reload with accountId =", accountId);
-
   loadPortfolioSummary(accountId);
   loadPortfolioHistory(accountId);
   loadRealtimePrices(accountId);
@@ -140,6 +150,8 @@ function reloadDashboardData() {
 
 // ---------------------------------------------------
 // DOM Ready
+// Set up tables and load initial data when the page is ready.
+// Also listen for broker account changes to reload data accordingly.
 // ---------------------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("dashboard.js: DOM ready");
@@ -155,7 +167,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // ---------------------------------------------------
-// Last Orders
+// Load last orders for the selected broker account and populate the orders table.
+// This function is called on initial load and whenever the broker account changes.
+// It fetches data from the API and updates the orders table with new data.
+// It also handles loading states and error messages.
 // ---------------------------------------------------
 async function loadLastOrders(accountId) {
   try {
@@ -197,7 +212,10 @@ async function loadLastOrders(accountId) {
 }
 
 // ---------------------------------------------------
-// Instrument Chart
+// Load instrument price history and display it in a chart.
+// This function is called when a user clicks on a row in the realtime prices table.
+// It fetches historical price data for the selected instrument and renders a chart using ECharts.
+// It also handles cases where no data is available or if an error occurs during loading.
 // ---------------------------------------------------
 function loadInstrumentChart(instrument_id, label) {
   fetch(`/cashcue/api/getInstrumentHistory.php?instrument_id=${instrument_id}`)
@@ -263,7 +281,8 @@ async function loadPortfolioSummary(accountId) {
     setText("dividendsNet", formatEUR(d.dividends_net));
     setText("cashBalance", formatEUR(d.cash_balance));
   } catch (err) {
-    console.error("Summary fetch error:", err);
+    showAlert("danger", "Failed to load portfolio summary");
+    console.error("Portfolio summary fetch error:", err);
   }
 }
 
@@ -298,6 +317,7 @@ async function loadPortfolioHistory(accountId) {
 
     window.addEventListener("resize", chart.resize);
   } catch (err) {
+    showAlert("danger", "Failed to load portfolio history");
     console.error("Portfolio history fetch error:", err);
   }
 }

@@ -63,10 +63,7 @@ class CashCueTable {
     this._initSearch();
   }
 
-  // --------------------------------------------------
-  // Public API
-  // --------------------------------------------------
-
+  // Public method to update table data and re-render
   setData(data) {
     this.originalData = Array.isArray(data) ? data : [];
     this.currentPage = 1;
@@ -74,6 +71,7 @@ class CashCueTable {
     this.render();
   }
 
+  // Main render method: applies search, sorting, pagination, and updates the DOM
   render() {
     const container = document.getElementById(this.containerId);
     if (!container) return;
@@ -98,9 +96,8 @@ class CashCueTable {
   }
 
   // --------------------------------------------------
-  // Sorting
+  // applies current sorting state to the data and returns a new sorted array
   // --------------------------------------------------
-
   _applySorting(data) {
     if (!this.currentSort.key) return [...data];
 
@@ -129,9 +126,10 @@ class CashCueTable {
   }
 
   // --------------------------------------------------
-  // Search / Filtering
+  // Search/filtering
+  // - Filters original data based on search input and specified search fields
+  // - Returns a new filtered array without mutating original data
   // --------------------------------------------------
-
   _initSearch() {
     if (!this.searchInput || !this.searchFields.length) return;
 
@@ -144,6 +142,7 @@ class CashCueTable {
     });
   }
 
+  // Applies search filtering to the data based on current search input and specified fields
   _applySearch(data) {
     if (!this.searchInput || !this.searchFields.length) return [...data];
 
@@ -159,17 +158,19 @@ class CashCueTable {
 
   // --------------------------------------------------
   // Pagination
+  // - Slices the sorted/filtered data array based on current page and page size
+  // - Returns a new paginated array without mutating original data
   // --------------------------------------------------
-
   _applyPagination(data) {
     const start = (this.currentPage - 1) * this.pagination.pageSize;
     return data.slice(start, start + this.pagination.pageSize);
   }
 
   // --------------------------------------------------
-  // Rendering
+  // Table construction
+  // - Builds the table header and body based on column definitions and current data
+  // - Uses Bootstrap classes for styling
   // --------------------------------------------------
-
   _buildTable(data) {
     const table = document.createElement("table");
     table.className = "table table-striped table-hover align-middle";
@@ -180,6 +181,7 @@ class CashCueTable {
     return table;
   }
 
+  // Builds the table header with sortable columns and appropriate icons
   _buildHeader() {
     const thead = document.createElement("thead");
     thead.className = "table-dark";
@@ -220,6 +222,7 @@ class CashCueTable {
     return thead;
   }
 
+  // Builds the table body by iterating over the data and applying column renderers if provided
   _buildBody(data) {
     const tbody = document.createElement("tbody");
 
@@ -250,9 +253,10 @@ class CashCueTable {
   }
 
   // --------------------------------------------------
-  // Pagination UI
+  // Pagination controls construction
+  // - Builds pagination navigation based on total rows and page size
+  // - Adds event listeners to page links to update current page and re-render
   // --------------------------------------------------
-
   _buildPagination(totalRows) {
     const totalPages = Math.ceil(totalRows / this.pagination.pageSize);
     if (totalPages <= 1) return document.createElement("div");
@@ -285,9 +289,10 @@ class CashCueTable {
   }
 
   // --------------------------------------------------
-  // Events
+  // Sort click handler
+  // - Updates current sort state based on clicked column and toggles direction
+  // - Calls render to update the table display
   // --------------------------------------------------
-
   _onSortClick(col) {
     if (this.currentSort.key === col.key) {
       this.currentSort.direction =
