@@ -141,6 +141,8 @@ async function loadPortfolioHistory() {
   const chartDom = document.getElementById("portfolioHistoryChart");
   if (!chartDom || !brokerId) return;
 
+  console.log(`Loading portfolio history for range: ${range} days, broker_account_id: ${brokerId}`);
+
   try {
     const res = await fetch(
       `/cashcue/api/getPortfolioHistory.php?range=${range}&broker_account_id=${brokerId}`
@@ -203,6 +205,7 @@ async function loadPortfolioHistory() {
           axisLine: { show: true },
           splitLine: { show: false }
         }
+        
       ],
       series: [
         {
@@ -211,6 +214,7 @@ async function loadPortfolioHistory() {
           yAxisIndex: 1,
           data: dailyInvested,
           barWidth: "50%",
+          color: "#28a745",   // couleur officielle série
           itemStyle: {
             color: params => barColors[params.dataIndex]
           }
@@ -221,7 +225,8 @@ async function loadPortfolioHistory() {
           data: cumulativeInvested,
           smooth: true,
           showSymbol: false,
-          lineStyle: { width: 2, color: "#007bff" }
+          color: "#007bff",
+          lineStyle: { width: 2 }
         },
         {
           name: "Portfolio Value",
@@ -229,7 +234,8 @@ async function loadPortfolioHistory() {
           data: portfolioValue,
           smooth: true,
           showSymbol: false,
-          lineStyle: { width: 2, color: "#ffc107" }
+          color: "#ffc107",
+          lineStyle: { width: 2 }
         }
       ]
     };
