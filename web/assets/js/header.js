@@ -51,7 +51,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const area   = document.getElementById("brokerAccountArea");
     const select = document.getElementById("activeAccountSelect");
+    if (!select) {
+        console.log("No account selector on this page (public layout).");
+        return;
+    }
 
+    // --------------------------------------------------------
+    // Sync active broker with user dropdown
+    // --------------------------------------------------------
+    const brokerDisplay = document.getElementById("dropdownActiveBroker");
+
+    function syncBrokerDropdown() {
+        if (!select || !brokerDisplay) return;
+
+        const selectedText =
+            select.options[select.selectedIndex]?.text || "All";
+
+        brokerDisplay.textContent = selectedText;
+    }
+
+    // Sync when selection changes
+    select.addEventListener("change", syncBrokerDropdown);
+    
+    // ============================================================
+    // Timer de session (à mettre ici, dans le même DOMContentLoaded)
+    // ============================================================
+    const duration = window.__SESSION_DURATION__;
+    const lastActivity = window.__LAST_ACTIVITY__;
+
+    if (duration && lastActivity) {
+        function updateTimer() {
+            const now = Math.floor(Date.now() / 1000);
+            const remaining = (lastActivity + duration) - now;
+
+            if (remaining <= 0) {
+                location.reload();
+                return;
+            }
+
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+
+            const display = String(minutes).padStart(2,'0') + ":" + String(seconds).padStart(2,'0');
+            const el = document.getElementById("sessionTimer");
+            if (el) el.textContent = display;
+        }
+
+        setInterval(updateTimer, 1000);
+        updateTimer();
+    }
 
     // --------------------------------------------------------
     // CASE 1: Broker selection disabled
@@ -147,7 +195,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
             console.error("CashCue: failed to load broker accounts", err);
-            showAlert("danger", "Failed to load broker accounts");
+            showAlert("danger", "Failed to load broker accounts",5000);
             select.innerHTML = `<option>Error loading accounts</option>`;
         });
 

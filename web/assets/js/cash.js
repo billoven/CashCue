@@ -67,9 +67,9 @@ function computeDateRange(value) {
 // ------------------------------------------------------------
 
 function initCashTable() {
-cashTable = new CashCueTable({
-  containerId: "cashTableContainer",
-  emptyMessage: "No cash movements",
+  cashTable = new CashCueTable({
+    containerId: "cashTableContainer",
+    emptyMessage: "No cash movements",
     columns: [
       {
         key: "date",
@@ -82,15 +82,22 @@ cashTable = new CashCueTable({
         sortable: true
       },
       {
+        key: "broker_account",
+        label: "Broker Account",
+        sortable: true,
+        render: row => {
+          // Sécurité: on vérifie que broker_name existe
+          const name = row.broker_name ?? "Unknown";
+          const type = row.broker_type ?? "—";
+          return `${name} ${type}`;
+        }
+      },
+      {
         key: "amount",
         label: "Amount (€)",
         sortable: true,
         align: "end",
         type: "number",
-        key: "amount",
-        label: "Amount (€)",
-        sortable: true,
-        align: "end",
         render: row => parseFloat(row.amount).toFixed(4)
       },
       {

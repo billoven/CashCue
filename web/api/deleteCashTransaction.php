@@ -1,8 +1,34 @@
 <?php
+/**
+ * -----------------------------------------------
+ * API endpoint to delete a cash transaction by ID.
+ * Method: POST
+ * URL: /api/deleteCashTransaction.php
+ * Body: { "id": 123 }
+ * Authentication: Required (must be logged in)
+ * Response:
+ * - Success: { "success": true }
+ * - Error: { "success": false, "error": "Error message" }
+ * The endpoint validates the input ID, checks if the cash transaction exists, deletes it from the database,
+ * recalculates the cash balance for the associated broker account, updates the cash account balance, and returns a JSON response indicating success or failure.
+ * ------------------------------------------------------------
+ * Notes:
+ * - The endpoint uses transactions to ensure data integrity, rolling back if any step fails.
+ * - The endpoint assumes that the cash account balance is derived from summing all cash transactions, so it does not directly update the balance but relies on the cash transaction record to reflect the deletion.    
+ * - The endpoint returns a generic error message on failure, but in a production environment, you might want to log the detailed error message to a file or monitoring system instead of returning it in the response, to avoid exposing sensitive information about your database structure or application logic to potential attackers.
+ * ------------------------------------------------------------
+ */
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
 require_once __DIR__ . '/../config/database.php';
-
-header('Content-Type: application/json');
-
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

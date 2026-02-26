@@ -1,5 +1,39 @@
 <?php
-header('Content-Type: application/json');
+/**
+ * API endpoint to update a broker account
+ * Expects POST data with the following fields:
+ * - id (required, integer)
+ * - name (required, string)
+ * - account_number (optional, string)
+ * - account_type (optional, string, default: PEA)
+ * - currency (optional, string, default: EUR)
+ * - comment (required, string)
+ *
+ * Returns JSON response:
+ * {
+ *   success: boolean,
+ *   message: string
+ * }
+ *
+ * Validation:
+ * - id must be a positive integer
+ * - name cannot be empty
+ * - comment cannot be empty
+ *
+ * Only the specified fields are updated. Other fields in the broker_account record remain unchanged.
+ * The account_number field is optional, but if provided, it should be unique. This is enforced by
+ * a UNIQUE constraint in the database schema, and any violation will result in an error response.
+ */
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
 require_once __DIR__ . '/../config/database.php';
 
 try {

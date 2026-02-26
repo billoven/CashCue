@@ -1,11 +1,12 @@
 /**
- * manage_brokers.js — CashCueTable version
- * ----------------------------------------
+ * manage_brokers.js — CashCueTable version (SECURED CLOSE VERSION)
+ * ----------------------------------------------------------------
  * Responsibilities:
  * - Load and display brokers table using CashCueTable
- * - Handle add/edit/delete brokers (modal-based)
+ * - Handle add/edit brokers (modal-based)
+ * - Securely CLOSE brokers (no physical delete)
  * - Manage Cash Account and Comment fields
- * - Keep all validated business logic intact
+ * - Preserve validated business logic
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const initialDepositContainer = document.getElementById('initialDepositContainer');
   const commentInput = document.getElementById('brokerComment');
   const modalTitle = document.getElementById('brokerModalLabel');
-
   const createdAtLabel = document.getElementById('brokerCreatedAt');
   const tableContainerId = "brokersTableContainer";
 
@@ -40,10 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let brokersTable;
 
   /* ============================================================
-     UTILITY FUNCTIONS
+     FORM UTILITIES
   ============================================================ */
 
-  //Resets the form to default state for creating a new broker
   function resetForm() {
     form.reset();
     brokerIdInput.value = '';
@@ -54,9 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
     commentInput.value = '';
   }
 
-
-  // toogleInitialDeposit shows/hides the initial deposit field 
-  // based on the cash account checkbox
   function toggleInitialDeposit() {
     if (hasCashAccountInput.checked && !editMode) {
       initialDepositContainer.style.display = 'block';
@@ -66,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // openCreateModal prepares the modal for creating a new broker
   function openCreateModal() {
     resetForm();
     editMode = false;
@@ -76,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
     createdAtLabel.textContent = '';
 
     cashAccountSection.style.display = 'block';
-
     hasCashAccountInput.disabled = false;
     initialDepositInput.disabled = false;
 
@@ -84,9 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.show();
   }
 
-
-  // openEditModal prepares the modal for editing an existing broker
   function openEditModal(broker) {
+    if (broker.status === 'CLOSED') {
+      return showAlert('warning', 'Closed broker accounts cannot be edited.');
+    }
+
     resetForm();
     editMode = true;
     currentBrokerId = broker.id;
@@ -100,20 +96,18 @@ document.addEventListener('DOMContentLoaded', () => {
     currencyInput.value = broker.currency || 'EUR';
     commentInput.value = broker.comment || '';
 
-    // Display creation timestamp (edit mode only)
     createdAtLabel.textContent = `Created at: ${broker.created_at}`;
     createdAtLabel.style.display = 'inline';
 
-    // Hide cash configuration in edit mode
     cashAccountSection.style.display = 'none';
 
     modal.show();
   }
-  // ------------------------------------------------
-  // initBrokersTable initializes the CashCueTable with appropriate columns and settings
-  // It defines how each column should be rendered, including custom rendering for the cash account status and action buttons.
-  // The table is configured to support pagination and sorting on relevant columns.
-  // ------------------------------------------------
+
+  /* ============================================================
+     TABLE INITIALIZATION
+  ============================================================ */
+
   function initBrokersTable() {
 
     brokersTable = new CashCueTable({
@@ -128,6 +122,18 @@ document.addEventListener('DOMContentLoaded', () => {
         { key: "account_type", label: "Account Type", sortable: true },
         { key: "currency", label: "Currency", sortable: true },
         { key: "created_at", label: "Created At", sortable: true, sortType: "date" },
+
+        {
+          key: "status",
+          label: "Status",
+          sortable: true,
+          align: "center",
+          render: row =>
+            row.status === 'CLOSED'
+              ? '<span class="badge bg-secondary">CLOSED</span>'
+              : '<span class="badge bg-success">ACTIVE</span>'
+        },
+
         {
           key: "has_cash_account",
           label: "Cash Account",
@@ -137,35 +143,48 @@ document.addEventListener('DOMContentLoaded', () => {
             ? '<i class="bi bi-check-circle-fill text-success"></i>'
             : '<i class="bi bi-x-circle-fill text-danger"></i>'
         },
+
         {
           key: "comment",
           label: "Comment",
           sortable: false,
           render: row => row.comment ?? ''
         },
+
         {
           key: "actions",
           label: "Actions",
           sortable: false,
           align: "center",
           html: true,
-          render: row => `
-            <button class="btn btn-sm btn-outline-primary me-1 editBrokerBtn" data-id="${row.id}">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger deleteBrokerBtn" data-id="${row.id}">
-              <i class="bi bi-trash"></i>
-            </button>
-          `
+          render: row => {
+
+            if (row.status === 'CLOSED') {
+              return `
+                <button class="btn btn-sm btn-outline-secondary me-1" disabled>
+                  <i class="bi bi-pencil"></i>
+                </button>
+              `;
+            }
+
+            return `
+              <button class="btn btn-sm btn-outline-primary me-1 editBrokerBtn" data-id="${row.id}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger closeBrokerBtn" data-id="${row.id}">
+                <i class="bi bi-x-octagon"></i>
+              </button>
+            `;
+          }
         }
       ]
     });
   }
 
-  // ------------------------------------------------
-  // loadBrokers fetches the list of brokers from the server and populates the CashCueTable
-  // It handles any errors that may occur during the fetch operation and ensures the table is updated accordingly.
-  // ------------------------------------------------
+  /* ============================================================
+     DATA LOADING
+  ============================================================ */
+
   async function loadBrokers() {
     try {
       const res = await fetch('/cashcue/api/getBrokers.php');
@@ -178,89 +197,95 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ------------------------------------------------
-  // deleteBroker handles the deletion of a broker account
-  // It prompts the user for confirmation, sends a delete request to the server, and refreshes the table upon success.
-  // ------------------------------------------------
-  async function deleteBroker(broker) {
+  /* ============================================================
+     SECURE CLOSE FLOW
+  ============================================================ */
+
+  async function closeBroker(broker) {
 
     if (!broker || !broker.id) {
       return showAlert('warning', 'Invalid broker data.');
     }
 
-    const confirmationMessage = `
-  Delete broker account?
-
-  Name: ${broker.name}
-  Account number: ${broker.account_number}
-  Account type: ${broker.account_type}
-
-  This action cannot be undone.
-  `;
-
-    if (!confirm(confirmationMessage)) return;
-
     try {
-      const res = await fetch('/cashcue/api/deleteBroker.php', {
+      const checkRes = await fetch('/cashcue/api/checkBrokerClosable.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `id=${encodeURIComponent(broker.id)}`
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP error ${res.status}`);
+      const checkResult = await checkRes.json();
+
+      if (!checkResult.success) {
+        return showAlert('danger', checkResult.message);
       }
 
-      const result = await res.json();
+      if (!checkResult.closable) {
+
+        let message = `
+Broker cannot be closed.
+
+Name: ${broker.name}
+Account number: ${broker.account_number}
+`;
+
+        if (parseFloat(checkResult.cash_balance) !== 0) {
+          message += `\nRemaining cash balance: ${parseFloat(checkResult.cash_balance).toFixed(2)} ${broker.currency}`;
+        }
+
+        if (checkResult.open_positions > 0) {
+          message += `\nOpen positions remaining: ${checkResult.open_positions}`;
+        }
+
+        return alert(message);
+      }
+
+      if (!confirm(`Close broker "${broker.name}"?\nThis action is irreversible.`)) return;
+
+      const closeRes = await fetch('/cashcue/api/closeBroker.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `id=${encodeURIComponent(broker.id)}`
+      });
+
+      const result = await closeRes.json();
 
       if (result.success) {
-        showAlert('success', result.message || 'Broker deleted.');
+        showAlert('success', result.message || 'Broker closed.');
         await loadBrokers();
       } else {
-        showAlert('danger', result.message || 'Delete failed.');
+        showAlert('danger', result.message);
       }
 
     } catch (err) {
-      console.error('Error deleting broker:', err);
-      showAlert('danger', 'Error deleting broker.');
+      console.error('Error closing broker:', err);
+      showAlert('danger', 'Error closing broker.');
     }
   }
 
+  /* ============================================================
+     EVENT DELEGATION
+  ============================================================ */
 
-  // ------------------------------------------------
-  // Event delegation for edit and delete buttons
-  // Listens for clicks on the edit and delete buttons within the table 
-  // and triggers the appropriate actions (open edit modal or delete broker).
-  // ------------------------------------------------
   document.addEventListener('click', async e => {
 
-    const editBtn   = e.target.closest('.editBrokerBtn');
-    const deleteBtn = e.target.closest('.deleteBrokerBtn');
+    const editBtn  = e.target.closest('.editBrokerBtn');
+    const closeBtn = e.target.closest('.closeBrokerBtn');
 
-    if (!editBtn && !deleteBtn) return;
+    if (!editBtn && !closeBtn) return;
 
-    const id = (editBtn || deleteBtn).dataset.id;
+    const id = (editBtn || closeBtn).dataset.id;
 
     try {
       const res = await fetch(`/cashcue/api/getBrokers.php?id=${id}`);
-
-      if (!res.ok) {
-        throw new Error(`HTTP error ${res.status}`);
-      }
-
       const broker = await res.json();
 
       if (!broker || !broker.id) {
-        return showAlert('warning', 'Broker account with this ID not found.');
+        return showAlert('warning', 'Broker not found.');
       }
 
-      if (editBtn) {
-        openEditModal(broker);
-      }
-
-      if (deleteBtn) {
-        deleteBroker(broker);   
-      }
+      if (editBtn) openEditModal(broker);
+      if (closeBtn) closeBroker(broker);
 
     } catch (err) {
       console.error('Error fetching broker:', err);
@@ -268,45 +293,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  /* ============================================================
+     FORM SUBMISSION
+  ============================================================ */
 
-  // ------------------------------------------------
-  // Form submission handler for adding/editing brokers
-  // Validates the comment field, constructs form data, and sends it to the appropriate API endpoint based on the mode (add or edit).
-  // Handles the response and updates the UI accordingly.
-  // ------------------------------------------------
   form.addEventListener('submit', async e => {
     e.preventDefault();
 
-    if (!commentInput.value.trim()) return showAlert('warning', 'Comment is required for audit purposes.');
-    
+    if (!commentInput.value.trim())
+      return showAlert('warning', 'Comment is required for audit purposes.');
+
     const formData = new FormData(form);
     formData.set('has_cash_account', hasCashAccountInput.checked ? 1 : 0);
     formData.set('initial_deposit', initialDepositInput.value || 0);
 
     if (editMode) formData.set('id', currentBrokerId);
 
-      const url = editMode ? '/cashcue/api/updateBroker.php' : '/cashcue/api/addBroker.php';
+    const url = editMode
+      ? '/cashcue/api/updateBroker.php'
+      : '/cashcue/api/addBroker.php';
 
     try {
       const res = await fetch(url, { method: 'POST', body: formData });
       const result = await res.json();
+
       if (result.success) {
         modal.hide();
         showAlert('success', result.message || (editMode ? 'Broker updated.' : 'Broker added.'));
         await loadBrokers();
       } else {
-        showAlert('danger', result.message || 'Operation failed.');
+        showAlert('danger', result.message);
       }
+
     } catch (err) {
       console.error('Error saving broker:', err);
       showAlert('danger', 'Error saving broker.');
     }
   });
 
-  // ------------------------------------------------
-  // Initial setup: attach event listeners and initialize the table
-  // Sets up the click listener for the add button, change listener for the cash account checkbox, initializes the CashCueTable, and loads the initial data.
-  // ------------------------------------------------
+  /* ============================================================
+     INITIALIZATION
+  ============================================================ */
+
   addBtn.addEventListener('click', openCreateModal);
   hasCashAccountInput.addEventListener('change', toggleInitialDeposit);
 

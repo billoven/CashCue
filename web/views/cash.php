@@ -1,4 +1,11 @@
 <?php
+  // define a constant to indicate that we are in the CashCue app context
+  // This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+  define('CASHCUE_APP', true);
+
+  // Include authentication check
+  require_once __DIR__ . '/../includes/auth.php';
+
   $page = 'cash';                 // identifies active Cash sub-page
   $BROKER_SCOPE = "single-or-all";
 
@@ -6,7 +13,19 @@
   require_once __DIR__ . '/header.php';
 ?>
 
-<div class="container-fluid py-4">
+<!-- 
+  Cash Account Overview
+  ------------------------------------------------------------
+  This page provides a detailed view of the user's cash account, including:
+  - Current cash balance
+  - Total inflows and outflows over a selected time range
+  - A table of recent cash transactions with details (date, amount, type, description)
+  
+  The page is designed to be responsive and user-friendly, utilizing Bootstrap for layout and styling. 
+  JavaScript modules handle data fetching and dynamic updates to ensure a seamless user experience.
+  Note: Ensure that the necessary API endpoints are implemented to provide the required data for the cash account components.
+  ------------------------------------------------------------ -->  
+  <div class="container-fluid py-4">
   <?php require_once __DIR__ . '/_cash_nav.php'; ?>
 
   <!-- Header -->

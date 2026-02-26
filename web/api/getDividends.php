@@ -14,7 +14,16 @@
  */
 
 header('Content-Type: application/json; charset=utf-8');
-require_once '../config/database.php';
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
+require_once __DIR__ . '/../config/database.php';
 
 try {
     $db  = new Database('production');

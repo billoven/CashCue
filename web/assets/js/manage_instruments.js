@@ -114,41 +114,47 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize CashCueTable (once)
   // --------------------------------------------------
   function initInstrumentsTable() {
+    const columns = [
+      { key: "symbol", label: "Symbol", sortable: true },
+      { key: "label",  label: "Label",  sortable: true },
+      { key: "isin",   label: "ISIN",   sortable: true },
+      { key: "type",   label: "Type",   sortable: true },
+      { key: "currency", label: "Currency", sortable: true },
+      {
+        key: "status",
+        label: "Status",
+        sortable: false,
+        html: true,
+        render: row => renderStatusBadge(row.status)
+      }
+    ];
+
+    // Only show actions column to admin users, as it contains edit buttons
+    if (window.CASHCUE_USER.isAdmin) {
+      columns.push({
+        key: "actions",
+        label: "Actions",
+        sortable: false,
+        html: true,
+        render: row => `
+          <button class="btn btn-sm btn-outline-primary edit-btn"
+                  data-id="${row.id}"
+                  title="Edit instrument">
+            <i class="bi bi-pencil"></i>
+          </button>
+        `
+      });
+    }
+
     instrumentsTable = new CashCueTable({
       containerId: "instrumentsTableContainer",
       searchInput: "#searchInstrument",
       searchFields: ["symbol", "label"],
       pagination: {
         enabled: true,
-        pageSize: 10
+        pageSize: 20
       },
-      columns: [
-        { key: "symbol", label: "Symbol", sortable: true },
-        { key: "label",  label: "Label",  sortable: true },
-        { key: "isin",   label: "ISIN",   sortable: true },
-        { key: "type",   label: "Type",   sortable: true },
-        { key: "currency", label: "Currency", sortable: true },
-        {
-          key: "status",
-          label: "Status",
-          sortable: false,
-          html: true,
-          render: row => renderStatusBadge(row.status)
-        },
-        {
-          key: "actions",
-          label: "Actions",
-          sortable: false,
-          html: true,
-          render: row => `
-            <button class="btn btn-sm btn-outline-primary edit-btn"
-                    data-id="${row.id}"
-                    title="Edit instrument">
-              <i class="bi bi-pencil"></i>
-            </button>
-          `
-        }
-      ]
+      columns: columns
     });
   }
 
@@ -266,16 +272,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // Add instrument
   // Resets form, loads instruments dropdown, sets modal title, 
   // and shows the modal when the add button is clicked
+  // btnAdd is only visible to admin users, as non-admins are not allowed to add instruments
   // ------------------------------------------
-  btnAdd.addEventListener("click", () => {
-    form.reset();
-    document.getElementById("instrumentId").value = "";
-    statusGroup.style.display = "none";
-    currentInstrumentStatus = "ACTIVE";
+  if (btnAdd) {
+    btnAdd.addEventListener("click", () => {
+      form.reset();
+      document.getElementById("instrumentId").value = "";
+      statusGroup.style.display = "none";
+      currentInstrumentStatus = "ACTIVE";
 
-    modalEl.querySelector(".modal-title").textContent = "➕ Add Instrument";
-    modal.show();
-  });
+      modalEl.querySelector(".modal-title").textContent = "➕ Add Instrument";
+      modal.show();
+    });
+  }
 
   // --------------------------------------------------
   // Save instrument (add or update)

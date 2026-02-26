@@ -10,6 +10,13 @@
     "reference_id": "Optional reference ID for linking to other records (e.g., trades, external system IDs)"
 }
 */
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json');
 

@@ -35,7 +35,8 @@ function getOrCreateAlertContainer() {
 }
 
 // Global function to show an alert with a specified type, message, and optional timeout
-window.showAlert = function(type, message, timeout = 5000) {
+// 8000 ms default timeout (8 seconds)
+window.showAlert = function(type, message, timeout = 8000) {
   const container = getOrCreateAlertContainer();
 
   if (container.children.length >= MAX_ALERTS) {
@@ -71,5 +72,7 @@ window.showAlert = function(type, message, timeout = 5000) {
 function closeAlert(alert) {
   alert.classList.remove('show');
   alert.classList.add('hide');
+
+  // Remove the alert from the DOM after the hide animation completes (400ms)
   setTimeout(() => alert.remove(), 400);
 }

@@ -13,7 +13,15 @@
  * Instrument lifecycle is driven exclusively by status changes.
  */
 
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../../includes/auth.php';
+
 $BROKER_SCOPE = "disabled";
+
 require_once __DIR__ . '/../../includes/helpers.php';
 require_once __DIR__ . '/../header.php';
 ?>
@@ -32,9 +40,14 @@ require_once __DIR__ . '/../header.php';
       class="form-control w-50"
       placeholder="Search by symbol or label..."
     >
-    <button id="btnAddInstrument" class="btn btn-primary btn-sm">
-      <i class="bi bi-plus-circle"></i> Add Instrument
-    </button>
+    
+    <!-- Only show Add button to super admins, as instrument management is a critical function 
+     that can impact the entire system. -->
+    <?php if (isSuperAdmin()): ?>
+      <button id="btnAddInstrument" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle"></i> Add Instrument
+      </button>
+    <?php endif; ?>
   </div>
   <div class="table-responsive" id="instrumentsTableContainer">
     <!-- CashCueTable renders the table here -->
@@ -109,6 +122,13 @@ require_once __DIR__ . '/../header.php';
     </div>
   </div>
 </div>
+
+<!-- Send user role info to JS for UI adjustments (e.g., showing/hiding status field) -->
+<script>
+    window.CASHCUE_USER = {
+        isAdmin: <?= isSuperAdmin() ? 'true' : 'false' ?>
+    };
+</script>
 
 <!-- Load JS -->
  <script src="/cashcue/assets/js/CashCueTable.js"></script>

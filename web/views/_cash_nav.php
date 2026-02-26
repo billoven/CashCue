@@ -10,6 +10,10 @@
  * last modified: 2026-02-19
  */
 
+// avoid direct access to this file
+// This file is meant to be included in other views, not accessed directly via URL
+if (!defined('CASHCUE_APP')) exit;
+
 // Defensive default
 $page = $page ?? '';
 ?>

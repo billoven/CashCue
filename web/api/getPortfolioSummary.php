@@ -1,6 +1,37 @@
 <?php
+/**
+ * Get portfolio summary
+ * 
+ * Returns aggregated portfolio metrics such as:
+ * - total_value
+ * - invested_amount
+ * - unrealized_pl
+ * - realized_pl
+ * - dividends_received
+ * 
+ * Response format:
+ * {
+ *   status: "success",
+ *   data: {
+ *     total_value: float,
+ *     invested: float,
+ *     unrealized_pl: float,
+ *     realized_pl: float,
+ *     dividends: float
+ *   }
+ * }
+ */
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
 require_once __DIR__ . '/../config/database.php';
-header('Content-Type: application/json');
 
 try {
     $db = new Database('production');

@@ -17,9 +17,15 @@
  * - type                (optional) : BUY, SELL, DIVIDEND, etc.
  */
 
-require_once __DIR__ . '/../config/database.php';
+header('Content-Type: application/json; charset=utf-8');
 
-header('Content-Type: application/json');
+define('CASHCUE_APP', true);
+
+// --------------------------------------------------
+// Include authentication & database
+// --------------------------------------------------
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../config/database.php';
 
 try {
     // --------------------------------------------------
@@ -29,10 +35,9 @@ try {
     $broker_account_id = $_GET['broker_account_id'] ?? null;
 
     $from = $_GET['from'] ?? null;
-    $to   = $_GET['to']   ?? null;
+    $to   = $_GET['to'] ?? null;
     $type = $_GET['type'] ?? null;
 
-    // At least one primary selector must be provided
     if (!$transaction_id && !$broker_account_id) {
         throw new Exception('Missing id or broker_account_id');
     }
@@ -44,18 +49,21 @@ try {
     $pdo = $db->getConnection();
 
     // --------------------------------------------------
-    // Base SQL query
+    // Base SQL query with broker_account join
     // --------------------------------------------------
     $sql = "
         SELECT
-            id,
-            broker_account_id,
-            date,
-            type,
-            amount,
-            reference_id,
-            comment
-        FROM cash_transaction
+            ct.id,
+            ct.broker_account_id,
+            ba.name AS broker_name,
+            ba.account_type AS broker_type,
+            ct.date,
+            ct.type,
+            ct.amount,
+            ct.reference_id,
+            ct.comment
+        FROM cash_transaction ct
+        LEFT JOIN broker_account ba ON ba.id = ct.broker_account_id
         WHERE 1=1
     ";
 
@@ -66,25 +74,19 @@ try {
     // --------------------------------------------------
     if ($transaction_id) {
         $transaction_id = (int)$transaction_id;
+        if ($transaction_id <= 0) throw new Exception('Invalid transaction id');
 
-        if ($transaction_id <= 0) {
-            throw new Exception('Invalid transaction id');
-        }
-
-        $sql .= " AND id = :id";
+        $sql .= " AND ct.id = :id";
         $params[':id'] = $transaction_id;
     }
     // --------------------------------------------------
-    // Listing mode (filtered by broker account)
+    // Listing mode (filter by broker account)
     // --------------------------------------------------
     elseif ($broker_account_id !== 'all') {
         $broker_account_id = (int)$broker_account_id;
+        if ($broker_account_id <= 0) throw new Exception('Invalid broker_account_id');
 
-        if ($broker_account_id <= 0) {
-            throw new Exception('Invalid broker_account_id');
-        }
-
-        $sql .= " AND broker_account_id = :broker_account_id";
+        $sql .= " AND ct.broker_account_id = :broker_account_id";
         $params[':broker_account_id'] = $broker_account_id;
     }
 
@@ -92,24 +94,24 @@ try {
     // Optional secondary filters
     // --------------------------------------------------
     if ($from) {
-        $sql .= " AND date >= :from";
+        $sql .= " AND ct.date >= :from";
         $params[':from'] = $from;
     }
 
     if ($to) {
-        $sql .= " AND date <= :to";
+        $sql .= " AND ct.date <= :to";
         $params[':to'] = $to;
     }
 
     if ($type) {
-        $sql .= " AND type = :type";
+        $sql .= " AND ct.type = :type";
         $params[':type'] = $type;
     }
 
     // --------------------------------------------------
     // Sorting (consistent for list & edition)
     // --------------------------------------------------
-    $sql .= " ORDER BY date DESC, id DESC";
+    $sql .= " ORDER BY ct.date DESC, ct.id DESC";
 
     // --------------------------------------------------
     // Execute query
@@ -129,16 +131,12 @@ try {
     ]);
 
 } catch (Exception $e) {
-
     // --------------------------------------------------
     // Error handling
     // --------------------------------------------------
     http_response_code(400);
-
     echo json_encode([
         'success' => false,
         'error'   => $e->getMessage()
     ]);
 }
-
-

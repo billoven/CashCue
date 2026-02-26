@@ -1,8 +1,42 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+  // ------------------------------------------------------------
+  // Dashboard view
+  // Displays portfolio summary, realtime prices, recent orders, and charts.
+  // ------------------------------------------------------------
+  // define a constant to indicate that we are in the CashCue app context
+  // This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+  define('CASHCUE_APP', true);
+
+  // Include authentication check
+  require_once __DIR__ . '/../includes/auth.php';
+  error_log("Dashboard view: Authentication check included successfully");
+
+  // Set broker scope for dashboard data (e.g., single broker or all brokers)
   $BROKER_SCOPE = "single-or-all";
+
+  // Include helpers and header
   require_once __DIR__ . '/../includes/helpers.php';
   require_once __DIR__ . '/header.php';
+  error_log("Dashboard view: Helpers and header included successfully");
 ?>
+
+<!-- 
+  CashCue Dashboard
+  ------------------------------------------------------------
+  This dashboard provides an overview of the user's portfolio, including:
+  - Portfolio summary cards (total value, invested amount, unrealized P/L, etc.)
+  - Realtime prices for held instruments
+  - Recent orders with details
+  - Interactive charts for portfolio evolution and instrument intraday prices
+  
+  The dashboard is designed to be responsive and user-friendly, utilizing Bootstrap for layout and ECharts for data visualization. 
+  JavaScript modules handle data fetching and dynamic updates to ensure a seamless user experience.
+  Note: Ensure that the necessary API endpoints are implemented to provide the required data for the dashboard components.
+  ------------------------------------------------------------ -->
+
 <div class="container-fluid py-4">
   <h2 class="mb-4">💹 Cashcue Dashboard</h2>
 

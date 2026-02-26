@@ -1,18 +1,44 @@
 <?php
+/**
+ * addBroker.php
+ *
+ * Creates a broker_account and optionally:
+ *  - creates a linked cash_account
+ *  - creates an initial DEPOSIT transaction
+ *
+ * Additionally:
+ *  - automatically links the created broker_account
+ *    to the currently authenticated user
+ *    via user_broker_account (ownership layer).
+ *
+ * All operations are executed inside a single
+ * atomic database transaction.
+ */
+
 header('Content-Type: application/json');
+
+define('CASHCUE_APP', true);
+
+require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 
 try {
 
+    // =====================================================
+    // Retrieve authenticated user (required for ownership)
+    // =====================================================
+    if (!isset($_SESSION['user_id'])) {
+        throw new Exception('User not authenticated.');
+    }
+
+    $user_id = intval($_SESSION['user_id']);
+
     $db = new Database('production');
     $pdo = $db->getConnection();
-
-    // Set error mode to exceptions
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // ==============================
     // POST fields
-    // Adapt field names and types as needed
     // ==============================
     $name            = trim($_POST['name'] ?? '');
     $account_number  = trim($_POST['account_number'] ?? '');
@@ -23,9 +49,7 @@ try {
     $comment         = trim($_POST['comment'] ?? '');
 
     // ==============================
-    // Basic validation (can be expanded with more complex rules)
-    // For example, you could check if the account number is unique here before attempting to insert.
-    // You could also validate the currency against a list of supported currencies, or check that the account type is valid.
+    // Validation
     // ==============================
     if ($name === '') {
         throw new Exception('Broker name is required.');
@@ -44,14 +68,9 @@ try {
     // ==============================
     $pdo->beginTransaction();
 
-    // ==============================
-    // Insert broker_account
-    // if has_cash_account is true, we will create a linked cash account in the next step
-    // We also set the status to 'ACTIVE' by default, but this can be adjusted based on your needs
-    // The account_number field is optional, but if provided, it should be unique. You can enforce this with a UNIQUE constraint in your database schema and handle the exception if a duplicate is attempted.
-    // The created_at field is set to the current timestamp using NOW(), but you could also allow this to be provided in the POST data if you want to support backdating.
-    // The comment field is required in this example, but you could make it optional if you prefer. It can be used to store any additional information about the broker account that might be useful for future reference.
-    // ==============================
+    // =====================================================
+    // 1️⃣ Insert broker_account
+    // =====================================================
     $stmt = $pdo->prepare("
         INSERT INTO broker_account (
             name,
@@ -86,14 +105,29 @@ try {
 
     $broker_id = $pdo->lastInsertId();
 
-    // ==============================
-    // Cash account creation
-    // If the broker account has a cash account, we create it here and link it to the broker account using the broker_account_id foreign key.
-    // The initial balance of the cash account is set to the initial deposit amount provided in the POST data. The current balance is also initialized to the same amount, but in a real application, you might want to calculate this based on existing transactions if you're allowing backdating.
-    // The name of the cash account is derived from the broker account name for clarity, but you could allow this to be specified separately if you want more flexibility.
-    // If the initial deposit is greater than zero, we also create an initial transaction to reflect this deposit in the cash account. The transaction type is set to 'DEPOSIT', but you could use different types or allow this to be specified in the POST data if you want more flexibility.
-    // The comment for the initial transaction includes the provided comment from the POST data, prefixed with "Initial deposit — " to indicate that this transaction is related to the initial funding of the cash account.
-    // ==============================
+    // =====================================================
+    // 2️⃣ Link broker_account to authenticated user
+    // (Ownership mapping layer)
+    // =====================================================
+    $stmtLink = $pdo->prepare("
+        INSERT INTO user_broker_account (
+            user_id,
+            broker_account_id
+        )
+        VALUES (
+            :user_id,
+            :broker_id
+        )
+    ");
+
+    $stmtLink->execute([
+        ':user_id' => $user_id,
+        ':broker_id' => $broker_id
+    ]);
+
+    // =====================================================
+    // 3️⃣ Optional cash_account creation
+    // =====================================================
     if ($has_cash) {
 
         $stmtCash = $pdo->prepare("
@@ -120,9 +154,9 @@ try {
             ':current' => $initial_deposit
         ]);
 
-        // ==============================
-        // Initial transaction (if > 0)
-        // ==============================
+        // =====================================================
+        // 4️⃣ Optional initial deposit transaction
+        // =====================================================
         if ($initial_deposit > 0) {
 
             $stmtTx = $pdo->prepare("
@@ -151,13 +185,10 @@ try {
     }
 
     // ==============================
-    // Commit transaction
+    // Commit
     // ==============================
     $pdo->commit();
 
-    // ==============================
-    // Success response
-    // ==============================
     echo json_encode([
         'success' => true,
         'message' => 'Broker created successfully.',
@@ -166,12 +197,10 @@ try {
 
 } catch (Throwable $e) {
 
-    // Rollback transaction if something went wrong
-    if ($pdo->inTransaction()) {
+    if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
 
-    // Handle specific errors (e.g., duplicate account number) or return a generic error message
     if (str_contains($e->getMessage(), 'Duplicate')) {
 
         echo json_encode([
@@ -181,11 +210,9 @@ try {
 
     } else {
 
-        // For debugging purposes, you might want to log the error message to a file or monitoring system instead of returning it directly in the response, especially in a production environment. This is to avoid exposing sensitive information about your database structure or application logic to potential attackers.
         echo json_encode([
             'success' => false,
             'message' => $e->getMessage()
         ]);
     }
 }
-

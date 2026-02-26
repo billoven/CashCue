@@ -1,8 +1,40 @@
 <?php
-header("Content-Type: application/json");
+/**
+ * Get realtime dashboard data
+ * 
+ * Response format:
+ * {
+ *   status: "success" | "error",
+ *   message: "Error message if status is error",
+ *   realtime: [ { symbol, label, price, captured_at, pct_change }, ... ],
+ *   snapshot: { date, total_value, invested_amount, unrealized_pl, realized_pl, dividends_received },
+ *   history: [ { date, total_value }, ... ] (last 30 days)
+ * }
+ * 
+ * Notes:
+ * - pct_change is the percentage change from the previous day's close (if available)
+ * - snapshot is the latest portfolio snapshot (if available)
+ * - history includes the last 30 days of portfolio values for charting
+ * - All timestamps are in ISO 8601 format (UTC)
+ * - Error responses include a message field with details about the error
+ * - This endpoint is designed to provide all necessary data for the realtime dashboard in a single request
+ * - The SQL queries are optimized for performance, using appropriate indexing and limiting the amount of data returned
+ */
+
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
+require_once __DIR__ . '/../config/database.php';
+
 require_once __DIR__ . '/../classes/Instrument.php';
 require_once __DIR__ . '/../classes/PortfolioSnapshot.php';
-require_once __DIR__ . '/../config/database.php';
 
 $db = (new Database('production'))->getConnection();
 

@@ -1,5 +1,38 @@
 <?php
-header("Content-Type: application/json");
+/**
+ * CashCue - getRealtimeData.php
+ * 
+ * API endpoint to fetch real-time data for dashboard and other UI components.
+ * 
+ * Response format:
+ * {
+ *   status: "success",
+ *   count: <number of instruments>,
+ *   data: [
+ *     {
+ *       instrument_id,
+ *       symbol,
+ *       label,
+ *       price,
+ *       currency,
+ *       captured_at,
+ *       pct_change,  // from daily_price for the day
+ *       status
+ *     },
+ *     ...
+ *   ]
+ * }
+ */
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
 require_once __DIR__ . '/../config/database.php';
 
 try {

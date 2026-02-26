@@ -1,6 +1,51 @@
 <?php
-require_once __DIR__ . '/../config/database.php';
+/**
+ * cancelOrder.php
+ * Endpoint to cancel an active order and create a corresponding cash reversal.
+ *
+ * Expected input (JSON):
+ * {
+ *   "id": 123  // ID of the order to cancel
+ * }
+ *
+ * Process:
+ * 1. Validate input and check if order exists and is ACTIVE.
+ * 2. Compute cash reversal amount based on order type (BUY or SELL).
+ * 3. Update order status to CANCELLED.
+ * 4. Insert a new cash transaction with the reversal amount.
+ * 5. Update the broker's cash account balance.
+ *
+ * Response (JSON):
+ * {
+ *   "success": true,
+ *   "order_id": 123,
+ *   "new_status": "CANCELLED",
+ *   "cash_reversal_amount": -100.50,
+ *   "broker_balance": 5000.00
+ * }
+ *
+ * Error response (JSON):
+ * {
+ *   "success": false,
+ *   "error": "Error message describing what went wrong"
+ * }
+ * Notes:
+ * - The reversal amount must exactly negate the original cash impact of the order, not recompute a theoretical amount, to ensure accuracy in case of any changes to the order record after the original transaction.
+ * - The endpoint uses transactions to ensure data integrity, rolling back if any step fails.
+ * - Authentication is required to access this endpoint.
+ * - The endpoint assumes that the cash account balance is derived from summing all cash transactions, so it does not directly update the balance but relies on the cash transaction record to reflect the reversal.
+ */
 header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
+require_once __DIR__ . '/../config/database.php';
 
 // IMPORTANT:
 // Reversal must exactly negate the original cash impact,

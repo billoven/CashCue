@@ -4,6 +4,13 @@
 // The required fields are broker_account_id, instrument_id, and payment_date. The amount can either be provided directly or calculated from gross_amount and taxes_withheld. If the broker account has a cash account, a cash transaction of type 'DIVIDEND' will be created with the net amount (amount) on the payment date. The current balance of the cash account will also be updated accordingly.
 // The endpoint returns a JSON response indicating success or failure, along with the ID of the newly created dividend record if successful.
 // ==============================
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json; charset=utf-8');
 

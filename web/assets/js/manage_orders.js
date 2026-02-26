@@ -146,7 +146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       containerId: "ordersTableContainer",
       searchInput: "#searchOrder",
       searchFields: ["symbol", "label"],   // <-- added for live search on these columns
-      pagination: { enabled: true, pageSize: 5 },
+      pagination: { enabled: true, pageSize: 20 },
       columns: [
         { key: "id", label: "ID", sortable: true, type: "number"},
         { key: "symbol", label: "Symbol", sortable: true, type: "string" },

@@ -201,7 +201,7 @@ function initDividendsTable() {
     dividendsTable = new CashCueTable({
         containerId: 'dividendsTableContainer',
         emptyMessage: 'No dividends recorded',
-        pagination: { enabled: true, pageSize: 5 },
+        pagination: { enabled: true, pageSize: 20 },
         columns: [
             {
                 key: 'payment_date',

@@ -110,6 +110,16 @@ function initCashTable() {
         sortable: true
       },
       {
+        key: "broker_account",
+        label: "Broker Account",
+        sortable: true,
+        render: row => {
+          const name = row.broker_name ?? "Unknown";
+          const type = row.broker_type ?? "—";
+          return `${name} ${type}`;
+        }
+      },
+      {
         key: "amount",
         label: "Amount (€)",
         sortable: true,
@@ -201,7 +211,7 @@ async function editCash(id) {
     const row = rows.find(r => r.id == id);
 
     if (!row) {
-      alert("Cash movement not found.");
+      showAlert("danger", "Cash movement not found.");
       return;
     }
 
@@ -223,7 +233,7 @@ async function editCash(id) {
 
   } catch (err) {
     console.error("CashCue: failed to load cash movement", err);
-    alert("Error loading cash movement.");
+    showAlert('danger','Failed to load cash movement: ' + err.message);
   }
 }
 

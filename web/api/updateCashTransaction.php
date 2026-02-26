@@ -1,6 +1,39 @@
 <?php
+/**
+ * API endpoint to update a cash transaction
+ * 
+ * Expects JSON input with at least the 'id' of the transaction to update, and any of the following optional fields:
+ * - date
+ * - amount
+ * - type
+ * - reference_id
+ * - comment
+ * 
+ * Returns JSON response:
+ * {
+ *   success: true|false,
+ *   error: "error message if any"
+ * }
+ * 
+ * Notes:
+ * - Only provided fields will be updated (partial update)
+ * - If the transaction is linked to a cash account, the cash account's current_balance will be recalculated after the update
+ * - Input validation is minimal; it's assumed that the client sends valid data types (e.g., date as string, amount as number)
+ * - The 'type' field can be used to categorize transactions (e.g., DEPOSIT, WITHDRAWAL, DIVIDEND, FEES, ADJUSTMENT), but no specific rules
+ *  are enforced in this endpoint regarding the type or amount values. It's up to the client to ensure data consistency.
+ * - The endpoint requires authentication, and the user must have permission to update the specified transaction.
+ */
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
 require_once __DIR__ . '/../config/database.php';
-header('Content-Type: application/json');
 
 try {
     $input = json_decode(file_get_contents('php://input'), true);

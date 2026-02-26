@@ -17,9 +17,12 @@
 //  - Server-side validation ensures security against malicious requests
 // ============================================================
 
-ob_start(); // buffer output
-ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/cashcue_php_errors.log');
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
 
 require_once __DIR__ . '/../config/database.php';
 header('Content-Type: application/json; charset=utf-8');

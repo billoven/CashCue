@@ -1,7 +1,25 @@
 <?php
+  /**
+   * CashCue - A web-based dashboard for monitoring and managing cryptocurrency trading bots.
+   * 
+   * This file is the main dashboard view that displays portfolio summary, realtime prices, recent orders, and charts.
+   * It includes authentication checks and uses the CashCueTable component for rendering tables.
+   * 
+   */
+
+  // define a constant to indicate that we are in the CashCue app context
+  // This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+  define('CASHCUE_APP', true);
+
+  // Include authentication check
+  require_once __DIR__ . '/../includes/auth.php';
+  
+  // Set broker scope for dashboard data (e.g., single broker or all brokers)
   $BROKER_SCOPE = "portfolio";
+
   require_once __DIR__ . '/../includes/helpers.php';
   require_once __DIR__ . '/header.php';
+
 ?>
 
 <div class="container-fluid py-4">

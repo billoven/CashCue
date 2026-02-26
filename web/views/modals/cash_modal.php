@@ -14,6 +14,11 @@
 
   last modified: 2026-02-19
 -->
+<?php
+  // avoid direct access to this file
+  // This file is meant to be included in other views, not accessed directly via URL
+  if (!defined('CASHCUE_APP')) exit;
+?>
  <div class="modal fade" id="cashModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">

@@ -1,5 +1,42 @@
 <?php
-header("Content-Type: application/json; charset=utf-8");
+/**
+ * API endpoint to retrieve order transactions with optional filtering and pagination.
+ * 
+ * Query parameters:
+ * - broker_account_id (int or 'all'): Filter by broker account. Use 'all' or omit for no filter.
+ * - limit (int): Number of records to return (default: 10).
+ * - offset (int): Number of records to skip for pagination (default: 0).
+ * 
+ * Response format:
+ * {
+ *   status: "success" | "error",
+ *   data: [ {id, symbol, label, order_type, quantity, price, fees, total, trade_date, status, cancelled_at}, ... ]
+ * }
+ * 
+ * Notes:
+ * - Orders are sorted by trade_date DESC, then id DESC for consistent pagination.
+ * - Total is calculated as (quantity * price) ± fees depending on order type.
+ * - Cancelled orders will have cancelled_at timestamp, otherwise null.
+ * - Server-side validation ensures security against malicious requests.
+ * - Authentication is required to access this endpoint.
+ * - Only orders belonging to the authenticated user will be returned.
+ * - The broker_account_id filter will only return orders from that specific broker account, or all accounts if 'all' is specified.
+ * - The limit and offset parameters allow for efficient pagination of results, which is important for accounts with a large number of transactions.
+ * - The response includes a status field to indicate success or error, and a data field containing the list of orders when successful.
+ * - The total field in each order is calculated based on the order type (BUY or SELL) and includes fees to reflect the actual cash flow impact of the transaction.
+ * - The cancelled_at field is included to indicate if and when an order was cancelled, which can be useful for users to track changes to their orders and for debugging purposes.
+ */
+ 
+header('Content-Type: application/json; charset=utf-8');
+
+// define a constant to indicate that we are in the CashCue app context
+// This can be used in included files to conditionally execute code (e.g., skipping certain checks or including specific assets)
+define('CASHCUE_APP', true);
+
+// Include authentication check
+require_once __DIR__ . '/../includes/auth.php';
+
+// include database connection class
 require_once __DIR__ . '/../config/database.php';
 
 try {
