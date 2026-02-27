@@ -1,6 +1,4 @@
----
 
-````markdown
 # Docker User Guide on Ubuntu 24.04
 
 This guide explains how to install and configure Docker on **Ubuntu 24.04** for end users or system administrators. It covers installation, basic configuration, running containers, and uninstalling Docker if needed.
