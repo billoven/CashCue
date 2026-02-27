@@ -175,8 +175,3 @@ This will remove Docker, all containers, images, volumes, and user configuration
 ---
 
 *Prepared for Ubuntu 24.04 users installing Docker for development or testing purposes.*
-
-```
-
----
-
