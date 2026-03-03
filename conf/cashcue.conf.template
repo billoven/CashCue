@@ -21,6 +21,7 @@ APP_DEBUG=false
 APP_HOST=0.0.0.0
 APP_PORT=8000
 
+
 # ==========================================================
 # Database Configuration
 # ==========================================================
@@ -37,86 +38,64 @@ DB_PASS=change_me
 DB_ROOT_USER=root
 DB_ROOT_PASSWORD=change_me_root
 
-
-# ---- Application Environment ----
-
-
-# ---- Scheduler (Cron) ----
-CRON_INTERVAL_MINUTES=15  # default interval for fetching stock prices
-
-# ---- Web Application ----
-WEB_HOST=0.0.0.0
-WEB_PORT=8080
-
-# ---- External Data Sources ----
-BOURSORAMA_URL_PATTERN=https://www.boursorama.com/cours/1r{symbol}/
-YAHOO_URL_PATTERN=https://finance.yahoo.com/quote/{symbol}
-
-# ---- Realtime Price Fetcher ----
-HTTP_TIMEOUT=10           # Timeout in seconds for HTTP requests
-HTTP_RETRIES=3            # Number of retries in case of network failure
-DEFAULT_CURRENCY=EUR      # Default currency for instruments
-
-# ---- Logging ----
-LOG_FILE=/var/log/cashcue/realtime_price.log
-
-# ---- Daily Price Update ----
-UPDATE_DAILY_PRICE=true   # true|false: whether to update daily_price table automatically
-MARKET_TIMEZONE=Europe/Paris  # Timezone for Paris stock exchange
-
-# ---- Debug / Dry-run ----
-DRY_RUN=false             # true|false: simulate inserts without touching DB
-
-# ---- Security ----
-# ⚠️ Must be a strong, random, 32+ character string.
-# Generate with:  openssl rand -base64 32 | tr -d '\n' | cut -c1-32
-SECRET_KEY=ReplaceThisWithA32CharRandomString
-
-
-
-
-
-
-
-
-
-
 # ==========================================================
-# Logging Configuration
-# ==========================================================
+# SuperAdmin CashCue (application login)
+# ========================================================== 
+CASHCUE_SUPERADMIN_USERNAME=cashcue_admin
+CASHCUE_SUPERADMIN_EMAIL=admin@cashcue.local
+CASHCUE_SUPERADMIN_PASSWORD=change_me
 
-LOG_LEVEL=INFO
-LOG_DIR=/var/log/cashcue
-
-
-# ==========================================================
-# Security Settings
-# ==========================================================
-
-SECRET_KEY=generate_a_strong_secret_here
-SESSION_TIMEOUT=3600
-
-
-# ==========================================================
-# External APIs
-# ==========================================================
-
-ALPHA_VANTAGE_API_KEY=
-YAHOO_FINANCE_ENABLED=true
-
-
-# ==========================================================
-# Scheduler Settings
-# ==========================================================
-
-ENABLE_CRON=true
-REALTIME_UPDATE_INTERVAL=5
-DAILY_UPDATE_HOUR=18
-
+# --- Environnement CashCue ---
+CASHCUE_ENV=test
 
 # ==========================================================
 # Docker Settings (if container mode)
 # ==========================================================
-
 DOCKER_APP_PORT=8080
 DOCKER_DB_PORT=3306
+
+# ==========================================================
+# Scheduler Settings
+# ==========================================================
+ENABLE_CRON=true
+REALTIME_UPDATE_INTERVAL=5
+CRON_INTERVAL_MINUTES=15  # default interval for fetching stock prices
+DAILY_UPDATE_HOUR=18
+
+# ==========================================================
+# External Data Sources 
+# ==========================================================
+BOURSORAMA_URL_PATTERN=https://www.boursorama.com/cours/1r{symbol}/
+YAHOO_URL_PATTERN=https://finance.yahoo.com/quote/{symbol}
+
+# ==========================================================
+#  Realtime Price Fetcher 
+# ==========================================================
+HTTP_TIMEOUT=10           # Timeout in seconds for HTTP requests
+HTTP_RETRIES=3            # Number of retries in case of network failure
+DEFAULT_CURRENCY=EUR      # Default currency for instruments
+
+# ==========================================================
+# Logging Configuration
+# ==========================================================
+LOG_LEVEL=INFO
+LOG_DIR=/var/log/cashcue
+
+# ==========================================================
+# Daily Price Update 
+# ==========================================================
+UPDATE_DAILY_PRICE=true       # true|false: whether to update daily_price table automatically
+MARKET_TIMEZONE=Europe/Paris  # Timezone for Paris stock exchange
+
+# ==========================================================
+#  Debug / Dry-run 
+# ==========================================================
+DRY_RUN=false             # true|false: simulate inserts without touching DB
+
+# ==========================================================
+# Security Settings
+# ⚠️ Must be a strong, random, 32+ character string.
+# Generate with:  openssl rand -base64 32 | tr -d '\n' | cut -c1-32
+# ==========================================================
+SESSION_TIMEOUT=3600
+SECRET_KEY=ReplaceThisWithA32CharRandomString
