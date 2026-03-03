@@ -1,20 +1,45 @@
-# ===============================
-# CashCue Global Configuration
-# Location: /etc/cashcue/cashcue.conf
-# Permissions: chmod 640
-# Owner: root:cashcue
-# ===============================
+# ==========================================================
+# CashCue Global Configuration File
+# ==========================================================
+# This file must be manually copied to:
+#     conf/cashcue.conf
+# and completed before running installation.
+#
+# It will be installed to:
+#     /etc/cashcue/cashcue.conf
+#
+# Do NOT commit cashcue.conf to version control.
+# ==========================================================
 
-# ---- Database Configuration ----
+
+# ==========================================================
+# Application Settings
+# ==========================================================
+APP_ENV=production        # development | staging | production
+APP_LOG_LEVEL=INFO        # DEBUG | INFO | WARNING | ERROR
+APP_DEBUG=false
+APP_HOST=0.0.0.0
+APP_PORT=8000
+
+# ==========================================================
+# Database Configuration
+# ==========================================================
+DB_ENGINE=mariadb
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=cashcue
 DB_USER=cashcue_user
-DB_PASS=ChangeMe123!   # ⚠️ Replace with a strong password
+DB_PASS=change_me
+
+# ==========================================================
+# Database Root (Used Only During Installation)
+# ==========================================================
+DB_ROOT_USER=root
+DB_ROOT_PASSWORD=change_me_root
+
 
 # ---- Application Environment ----
-APP_ENV=production        # development | staging | production
-APP_LOG_LEVEL=INFO        # DEBUG | INFO | WARNING | ERROR
+
 
 # ---- Scheduler (Cron) ----
 CRON_INTERVAL_MINUTES=15  # default interval for fetching stock prices
@@ -46,3 +71,52 @@ DRY_RUN=false             # true|false: simulate inserts without touching DB
 # ⚠️ Must be a strong, random, 32+ character string.
 # Generate with:  openssl rand -base64 32 | tr -d '\n' | cut -c1-32
 SECRET_KEY=ReplaceThisWithA32CharRandomString
+
+
+
+
+
+
+
+
+
+
+# ==========================================================
+# Logging Configuration
+# ==========================================================
+
+LOG_LEVEL=INFO
+LOG_DIR=/var/log/cashcue
+
+
+# ==========================================================
+# Security Settings
+# ==========================================================
+
+SECRET_KEY=generate_a_strong_secret_here
+SESSION_TIMEOUT=3600
+
+
+# ==========================================================
+# External APIs
+# ==========================================================
+
+ALPHA_VANTAGE_API_KEY=
+YAHOO_FINANCE_ENABLED=true
+
+
+# ==========================================================
+# Scheduler Settings
+# ==========================================================
+
+ENABLE_CRON=true
+REALTIME_UPDATE_INTERVAL=5
+DAILY_UPDATE_HOUR=18
+
+
+# ==========================================================
+# Docker Settings (if container mode)
+# ==========================================================
+
+DOCKER_APP_PORT=8080
+DOCKER_DB_PORT=3306

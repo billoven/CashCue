@@ -1,0 +1,37 @@
+services:
+
+  cashcue_db:
+    image: mariadb:11
+    container_name: cashcue_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${ROOT_DB_PASSWORD}"
+      MYSQL_DATABASE: "${DB_NAME}"
+      MYSQL_USER: "${DB_USER}"
+      MYSQL_PASSWORD: "${DB_PASS}"
+    ports:
+      - "${DB_PORT:-3307}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${ROOT_DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  cashcue_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cashcue_app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - ./web:/var/www/html/cashcue
+    depends_on:
+      cashcue_db:
+        condition: service_healthy
+
+volumes:
+  db_data:

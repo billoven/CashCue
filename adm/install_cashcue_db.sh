@@ -1,72 +1,86 @@
-#!/bin/bash
-# Install CashCue DB (Docker & normal production compatible)
+#!/usr/bin/env bash
+# =====================================================
+# CashCue Database Initialization Script
+# Author: Pierre
+# Description:
+#   Initializes the CashCue database by creating the database,
+#   user, and importing the schema. Also creates a super admin user for being able to access to
+#   the application after first launch and creates other users if needed.
+# =====================================================
 
-CONFIG_FILE="/etc/cashcue/cashcue.conf"
-SCHEMA_FILE="adm/schemaBD.sql"
+set -euo pipefail
 
-# -------------------------
-# Load configuration
-# -------------------------
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "[ERROR] Config file not found: $CONFIG_FILE"
-    exit 1
-fi
+SCHEMA_FILE="adm/schemaCashCueBD.sql"
 
-set -a
-source "$CONFIG_FILE"
-set +a
+# --------------------------------------------------------------
+# Validate required environment variables
+# --------------------------------------------------------------
+REQUIRED_VARS=(
+    DB_NAME DB_USER DB_PASS DB_HOST ROOT_DB_PASSWORD
+    CASHCUE_SUPERADMIN_USERNAME
+    CASHCUE_SUPERADMIN_EMAIL
+    CASHCUE_SUPERADMIN_PASSWORD
+)
 
-# -------------------------
-# Check required variables
-# -------------------------
-if [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASS" ] || [ -z "$DB_HOST" ]; then
-    echo "[ERROR] Missing database configuration in $CONFIG_FILE"
-    exit 1
-fi
+# Check if all required environment variables are set
+for VAR in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!VAR:-}" ]; then
+        echo "[ERROR] Missing environment variable: $VAR"
+        exit 1
+    fi
+done
 
-if [ -z "$ROOT_DB_PASSWORD" ]; then
-    echo "[ERROR] ROOT_DB_PASSWORD variable not set. Please set it before running the script."
-    exit 1
-fi
-
+# Check if schema file exists
 if [ ! -f "$SCHEMA_FILE" ]; then
     echo "[ERROR] Schema file not found: $SCHEMA_FILE"
     exit 1
 fi
 
-# -------------------------
-# Set MySQL root command
-# -------------------------
-MYSQL_CMD="mysql -u root -p${ROOT_DB_PASSWORD}"
+# --------------------------------------------------------------
+# Wait for MariaDB (Docker-safe)
+# --------------------------------------------------------------
+echo "[INFO] Waiting for MariaDB at ${DB_HOST}..."
+until mysql -h "$DB_HOST" -u root -p"$ROOT_DB_PASSWORD" -e "SELECT 1;" >/dev/null 2>&1; do
+    sleep 2
+done
 
-# -------------------------
+MYSQL_ROOT="mysql -h $DB_HOST -u root -p${ROOT_DB_PASSWORD}"
+
+# --------------------------------------------------------------
 # Create database
-# -------------------------
-echo "[INFO] Creating database '$DB_NAME'..."
-$MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
+# --------------------------------------------------------------
+$MYSQL_ROOT -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;"
 
-# -------------------------
-# Determine user host
-# -------------------------
-if [ "$DB_HOST" == "127.0.0.1" ] || [ "$DB_HOST" == "localhost" ]; then
-    USER_HOST="%"
-else
-    # LAN prefix: 192.168.17.% for normal networks
-    USER_HOST=$(echo "$DB_HOST" | awk -F. '{print $1"."$2"."$3".%"}')
-fi
+# --------------------------------------------------------------
+# Create user and grant privileges
+# --------------------------------------------------------------
+$MYSQL_ROOT -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';"
+$MYSQL_ROOT -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';"
+$MYSQL_ROOT -e "FLUSH PRIVILEGES;"
 
-# -------------------------
-# Create user & grant privileges
-# -------------------------
-echo "[INFO] Creating user '$DB_USER'@'$USER_HOST'..."
-$MYSQL_CMD -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'${USER_HOST}' IDENTIFIED BY '${DB_PASS}';"
-$MYSQL_CMD -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${USER_HOST}';"
-$MYSQL_CMD -e "FLUSH PRIVILEGES;"
-
-# -------------------------
+# --------------------------------------------------------------
 # Import schema
-# -------------------------
-echo "[INFO] Importing schema from $SCHEMA_FILE..."
-$MYSQL_CMD "$DB_NAME" < "$SCHEMA_FILE"
+# --------------------------------------------------------------
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$SCHEMA_FILE"
 
-echo "[SUCCESS] Database '$DB_NAME' initialized and user '$DB_USER' created with access from '$USER_HOST'."
+# --------------------------------------------------------------
+# SuperAdmin cashcue first user creation
+# --------------------------------------------------------------
+PASSWORD_HASH=$(printf "%s" "$CASHCUE_SUPERADMIN_PASSWORD" | sha256sum | awk '{print $1}')
+
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" <<EOF
+INSERT INTO user (username, email, password_hash, is_super_admin, is_active)
+SELECT * FROM (
+    SELECT
+        '${CASHCUE_SUPERADMIN_USERNAME}',
+        '${CASHCUE_SUPERADMIN_EMAIL}',
+        '${PASSWORD_HASH}',
+        1,
+        1
+) AS tmp
+WHERE NOT EXISTS (
+    SELECT 1 FROM user WHERE username='${CASHCUE_SUPERADMIN_USERNAME}'
+) LIMIT 1;
+EOF
+
+echo "[SUCCESS] Database initialized."

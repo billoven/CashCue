@@ -135,6 +135,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+conf/cashcue.conf
 .env
 .envrc
 .venv
