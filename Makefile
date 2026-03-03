@@ -20,6 +20,11 @@ else
     $(error This Makefile must be run as root. Please use: sudo make <target>)
 endif
 
+# Check if CONFIG_FILE exists before proceeding with any target
+ifeq ($(wildcard conf/cashcue.conf),)
+	$(error Missing configuration file: conf/cashcue.conf. Please create it before running any targets.)
+endif
+
 
 # =========================================================
 # Execution Mode
@@ -166,10 +171,8 @@ install-config:
 
 init-db:
 ifeq ($(MODE),container)
-	@echo "Initializing DB inside container..."
-	docker exec -i $(DOCKER_DB) mysql -u root -p$$MYSQL_ROOT_PASSWORD < adm/schemaCashCueBD.sql
+	$(DOCKER_COMPOSE) exec $(DOCKER_APP) bash adm/install_cashcue_db.sh
 else
-	@echo "Initializing DB on native system..."
 	bash adm/install_cashcue_db.sh
 endif
 
@@ -187,7 +190,6 @@ secure-logs:
 # =========================================================
 # Cron Jobs
 # =========================================================
-
 cron:
 ifeq ($(CRON_ENABLED),true)
 	@echo "Installing cron jobs..."
