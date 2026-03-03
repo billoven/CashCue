@@ -48,6 +48,7 @@ endif
 # =========================================================
 
 INSTALL_DIR     = /opt/cashcue
+CONF_FILE	    = conf/cashcue.conf
 VENV_DIR        = $(INSTALL_DIR)/venv
 WEB_DIR         = /var/www/html/cashcue
 CONFIG_DIR      = /etc/cashcue
@@ -68,19 +69,19 @@ DOCKER_DB       = cashcue_db
 
 check-env:
 ifndef DB_HOST
-    $(error DB_HOST not defined in $(ENV_FILE))
+    $(error DB_HOST not defined in $(CONF_FILE))
 endif
 ifndef DB_PORT
-    $(error DB_PORT not defined in $(ENV_FILE))
+    $(error DB_PORT not defined in $(CONF_FILE))
 endif
 ifndef DB_USER
-    $(error DB_USER not defined in $(ENV_FILE))
+    $(error DB_USER not defined in $(CONF_FILE))
 endif
 ifndef DB_PASSWORD
-    $(error DB_PASSWORD not defined in $(ENV_FILE))
+    $(error DB_PASSWORD not defined in $(CONF_FILE))
 endif
 ifndef DB_NAME
-    $(error DB_NAME not defined in $(ENV_FILE))
+    $(error DB_NAME not defined in $(CONF_FILE))
 endif
 
 
