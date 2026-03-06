@@ -137,22 +137,53 @@ else
 endif
 
 # =========================================================
-# Docker Development Environment
+# Docker Control (Safe Volume Management)
 # =========================================================
 
+docker-start:
+	@echo "Starting existing containers..."
+	$(DOCKER_COMPOSE) start
+
+docker-stop:
+	@echo "Stopping containers..."
+	$(DOCKER_COMPOSE) stop
+
 docker-up:
-	@echo "Starting Docker environment..."
+	@echo "Creating / starting containers..."
+	$(DOCKER_COMPOSE) up -d
+
+docker-build:
+	@echo "Rebuilding containers (no volume deletion)..."
 	$(DOCKER_COMPOSE) up --build -d
 
 docker-down:
-	@echo "Stopping Docker environment..."
-	$(DOCKER_COMPOSE) down -v
+	@echo "Removing containers (keeping volumes)..."
+	$(DOCKER_COMPOSE) down
 
 docker-reset:
-	@echo "Resetting Docker environment (including volumes)..."
+	@echo "WARNING: destroying containers AND volumes then rebuilding. This will erase all data! Use with caution."
 	$(DOCKER_COMPOSE) down -v
 	$(DOCKER_COMPOSE) up --build -d
 
+# =========================================================
+# Dump database (for CI dataset)
+# ex: 
+#	sudo make docker-dump-db --> uses default DB_DUMP_FILE from cashcue.conf
+# 	sudo make docker-dump-db DB_DUMP_FILE=/tmp/test_dataset.sql --> overrides default dump file path
+# =========================================================
+
+docker-dump-db:
+ifndef DB_DUMP_FILE
+	$(error DB_DUMP_FILE is not defined in cashcue.conf or command line)
+endif
+	@echo "Dumping database to $(DB_DUMP_FILE)..."
+	docker exec cashcue_db mariadb-dump \
+		-u$(DB_USER) \
+		-p$(DB_PASS) \
+		$(DB_NAME) > $(DB_DUMP_FILE)
+
+	@echo "Database dump created:"
+	@echo "  $(DB_DUMP_FILE)"
 
 # =========================================================
 # Python Backend Installation
@@ -197,15 +228,19 @@ install-config:
 
 # =========================================================
 # Database Initialization
+# Usage: 
+#	sudo make init-db SCHEMA=path/to/schema.sql
+# If SCHEMA is not provided, it will run the default installation script without a custom schema.
 # =========================================================
 
 init-db:
 ifeq ($(MODE),container)
-	$(DOCKER_COMPOSE) exec $(DOCKER_APP) bash /data/cashcue/adm/install_cashcue_db.sh
+	@echo "[INFO] Initializing DB in Docker (schema=$(SCHEMA))..."
+	$(DOCKER_COMPOSE) exec $(DOCKER_APP) bash /data/cashcue/adm/install_cashcue_db.sh $(if $(SCHEMA),-f /data/cashcue/$(SCHEMA))
 else
-	bash adm/install_cashcue_db.sh
+	@echo "[INFO] Initializing DB locally (schema=$(SCHEMA))..."
+	bash adm/install_cashcue_db.sh $(if $(SCHEMA),-f $(SCHEMA))
 endif
-
 
 # =========================================================
 # Logging Setup

@@ -138,13 +138,11 @@ else
 fi
 
 # SuperAdmin user creation
-
-# Générer un hash sécurisé avec bcrypt (PHP style)
+# Generate password hash using PHP's password_hash function
+# Note: This requires PHP to be installed in the container. If not available, consider using a different hashing method or pre-hashing the password.
 PASSWORD_HASH=$(php -r "echo password_hash(getenv('CASHCUE_SUPERADMIN_PASSWORD'), PASSWORD_DEFAULT);")
 
 echo "[INFO] Creating SuperAdmin user: $CASHCUE_SUPERADMIN_USERNAME"
-echo "[INFO] CASHCUE_SUPERADMIN_PASSWORD: $CASHCUE_SUPERADMIN_PASSWORD"
-echo "[INFO] PASSWORD_HASH: $PASSWORD_HASH"
 
 mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" <<EOF
 INSERT IGNORE INTO user (username, email, password_hash, is_super_admin, is_active)

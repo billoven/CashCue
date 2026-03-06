@@ -53,6 +53,7 @@ CASHCUE_ENV=test
 # ==========================================================
 DOCKER_APP_PORT=8080
 DOCKER_DB_PORT=3306
+DB_DUMP_FILE=Change_Me_Or_Let_Empty
 
 # ==========================================================
 # Scheduler Settings
