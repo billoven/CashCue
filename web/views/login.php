@@ -62,7 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             // Verify password
-            if ($user && password_verify($password, $user['password_hash'])) {
+            if ($user && password_verify($password, trim($user['password_hash']))) {
+
                 // Successful login
                 session_regenerate_id(true); // Prevent session fixation
 
@@ -95,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CashCue Login</title>
-<link href="/cashcue/web/assets/css/style.css" rel="stylesheet">
+<link href="/cashcue/assets/css/style.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 </head>

@@ -25,6 +25,12 @@ ifeq ($(wildcard conf/cashcue.conf),)
 	$(error Missing configuration file: conf/cashcue.conf. Please create it before running any targets.)
 endif
 
+# =========================================================
+# Load environment configuration
+# =========================================================
+
+include conf/cashcue.conf
+export
 
 # =========================================================
 # Execution Mode
@@ -62,6 +68,10 @@ DOCKER_COMPOSE  = docker compose -f docker/docker-compose.yml --env-file conf/ca
 DOCKER_APP      = cashcue_app
 DOCKER_DB       = cashcue_db
 
+APACHE_SITE_NAME      = cashcue
+APACHE_SITE_FILE      = /etc/apache2/sites-available/$(APACHE_SITE_NAME).conf
+APACHE_CONF_NAME      = cashcue-security
+APACHE_CONF_FILE      = /etc/apache2/conf-available/$(APACHE_CONF_NAME).conf
 
 # =========================================================
 # Environment Validation
@@ -77,8 +87,8 @@ endif
 ifndef DB_USER
     $(error DB_USER not defined in $(CONF_FILE))
 endif
-ifndef DB_PASSWORD
-    $(error DB_PASSWORD not defined in $(CONF_FILE))
+ifndef DB_PASS
+    $(error DB_PASS not defined in $(CONF_FILE))
 endif
 ifndef DB_NAME
     $(error DB_NAME not defined in $(CONF_FILE))
@@ -106,6 +116,25 @@ endif
 
 all: new-release
 
+# =========================================================
+# Apache Configuration
+# =========================================================
+
+install-apache-config:
+ifeq ($(MODE),container)
+	@echo "Apache config handled inside Docker image."
+else
+	@echo "Installing Apache configuration (native mode)..."
+	cp conf/apache/vhost.conf $(APACHE_SITE_FILE)
+	cp conf/apache/security.conf $(APACHE_CONF_FILE)
+
+	a2enmod headers rewrite
+	a2dissite 000-default.conf || true
+	a2ensite $(APACHE_SITE_NAME)
+	a2enconf $(APACHE_CONF_NAME)
+
+	systemctl reload apache2
+endif
 
 # =========================================================
 # Docker Development Environment
@@ -117,7 +146,7 @@ docker-up:
 
 docker-down:
 	@echo "Stopping Docker environment..."
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) down -v
 
 docker-reset:
 	@echo "Resetting Docker environment (including volumes)..."
@@ -172,7 +201,7 @@ install-config:
 
 init-db:
 ifeq ($(MODE),container)
-	$(DOCKER_COMPOSE) exec $(DOCKER_APP) bash adm/install_cashcue_db.sh
+	$(DOCKER_COMPOSE) exec $(DOCKER_APP) bash /data/cashcue/adm/install_cashcue_db.sh
 else
 	bash adm/install_cashcue_db.sh
 endif
@@ -254,7 +283,7 @@ write-version:
 # Unified Release Pipeline
 # =========================================================
 
-new-release: system-group install-backend install-frontend secure-config secure-logs write-version
+new-release: system-group install-backend install-frontend install-config install-apache-config secure-logs write-version
 ifeq ($(CRON_ENABLED),true)
 	$(MAKE) cron install-logrotate
 endif
@@ -262,12 +291,14 @@ endif
 
 
 # =========================================================
-# Container Deployment Shortcut
+# Container Deployment
 # =========================================================
 
-deploy-container:
-	$(MAKE) MODE=container docker-up
+deploy-container: start-container init-db
 
+start-container:
+	@echo "Starting CashCue Docker stack..."
+	$(DOCKER_COMPOSE) up --build -d
 
 # =========================================================
 # Development Backend Mode

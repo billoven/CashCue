@@ -2,75 +2,71 @@
 # =====================================================
 # CashCue Docker ENTRYPOINT
 # Author: Pierre
-# Description:
-#   Initialize database, create user, import schema if needed.
-#   Waits until MariaDB is ready before executing commands.
+#
+# Responsibilities:
+#   - Wait for DB
+#   - Create web root symlink if missing
+#   - Delegate to container CMD (Apache)
 # =====================================================
 
-set -e
+set -euo pipefail
+
 
 echo "===================================="
-echo " CashCue Docker Test Environment"
+echo " CashCue Docker Entrypoint"
 echo "===================================="
 
-# --- Basic environment checks ---
-: "${ROOT_DB_PASSWORD:?ROOT_DB_PASSWORD not set!}"
-: "${DB_USER:?DB_USER not set!}"
-: "${DB_PASS:?DB_PASS not set!}"
-: "${DB_NAME:?DB_NAME not set!}"
-: "${DB_HOST:?DB_HOST not set!}"
+# Load configuration from /data/cashcue/conf/cashcue.conf
+CONF_FILE="/data/cashcue/conf/cashcue.conf"
 
-# --- Function to wait for DB readiness ---
+if [ -f "$CONF_FILE" ]; then
+    echo "[INFO] Loading configuration from $CONF_FILE"
+    set -a
+    source "$CONF_FILE"
+    set +a
+else
+    echo "[ERROR] Configuration file not found: $CONF_FILE"
+    exit 1
+fi
+# --- Validate essential environment variables ---
+: "${DB_HOST:?DB_HOST not set}"
+: "${DB_USER:?DB_USER not set}"
+: "${DB_PASS:?DB_PASS not set}"
+: "${DB_NAME:?DB_NAME not set}"
+
+# -----------------------------------------------------
+# Wait until database becomes available
+# -----------------------------------------------------
 wait_for_db() {
-    echo "Waiting for database $DB_HOST to be ready..."
-    until mysql -h "$DB_HOST" -u root -p"$ROOT_DB_PASSWORD" -e "SELECT 1;" &> /dev/null
-    do
-        echo -n "."
+    echo "[INFO] Waiting for database at $DB_HOST..."
+
+    until mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "SELECT 1;" &>/dev/null; do
+        echo "[INFO] Database not ready yet..."
         sleep 2
     done
-    echo " Database is ready!"
+
+    echo "[INFO] Database connection OK."
 }
 
-# --- Initialize database ---
-init_db() {
-    echo "Initializing database $DB_NAME on $DB_HOST..."
-
-    # Create database if not exists
-    mysql -h "$DB_HOST" -u root -p"$ROOT_DB_PASSWORD" -e \
-        "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-    # Create user if not exists
-    mysql -h "$DB_HOST" -u root -p"$ROOT_DB_PASSWORD" -e \
-        "CREATE USER IF NOT EXISTS '$DB_USER'@'%' IDENTIFIED BY '$DB_PASS';"
-    mysql -h "$DB_HOST" -u root -p"$ROOT_DB_PASSWORD" -e \
-        "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'%';"
-    mysql -h "$DB_HOST" -u root -p"$ROOT_DB_PASSWORD" -e "FLUSH PRIVILEGES;"
-
-    # Import schema if DB is empty
-    TABLE_COUNT=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -D "$DB_NAME" -sse \
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME';")
-
-    SCHEMA_FILE="/var/www/html/adm/schemaCashCueBD.sql"
-
-    if [ ! -f "$SCHEMA_FILE" ]; then
-        echo "Error: schema file $SCHEMA_FILE not found!"
-        exit 1
-    fi
-
-    if [ "$TABLE_COUNT" -eq 0 ]; then
-        echo "Importing CashCue schema..."
-        mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$SCHEMA_FILE"
-        echo "Schema imported."
-    else
-        echo "Tables already exist, skipping schema import."
-    fi
-}
-
-# --- Wait for database to be ready ---
 wait_for_db
 
-# --- Initialize database ---
-init_db
+# -----------------------------------------------------
+# Ensure /var/www/html exists
+# -----------------------------------------------------
+mkdir -p /var/www/html
 
-# --- Execute container command ---
+# -----------------------------------------------------
+# Create symlink if missing
+# -----------------------------------------------------
+if [ ! -L /var/www/html/cashcue ]; then
+    echo "[INFO] Creating symlink /var/www/html/cashcue -> /data/cashcue/web"
+    ln -s /data/cashcue/web /var/www/html/cashcue
+else
+    echo "[INFO] Symlink already exists"
+fi
+
+# -----------------------------------------------------
+# Start container CMD (Apache)
+# -----------------------------------------------------
+echo "[INFO] Starting Apache..."
 exec "$@"

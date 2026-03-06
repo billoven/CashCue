@@ -1,34 +1,38 @@
 services:
-
   cashcue_db:
     image: mariadb:11
     container_name: cashcue_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: "${ROOT_DB_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
       MYSQL_DATABASE: "${DB_NAME}"
       MYSQL_USER: "${DB_USER}"
       MYSQL_PASSWORD: "${DB_PASS}"
-    ports:
-      - "${DB_PORT:-3307}:3306"
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${ROOT_DB_PASSWORD}"]
+      test: ["CMD-SHELL", "mariadb -u root -p$${MYSQL_ROOT_PASSWORD} --protocol=tcp -e 'SELECT 1;' >/dev/null 2>&1 || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 15s
 
   cashcue_app:
+    environment:
+      DB_HOST: cashcue_db
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: cashcue_app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8080}:80"
+      - "${APP_PORT:-8000}:80"
     volumes:
-      - ./web:/var/www/html/cashcue
+      # Full project tree
+      - ../:/data/cashcue
+
+      # Config file
+      - ../conf/cashcue.conf:/etc/cashcue/cashcue.conf:ro
     depends_on:
       cashcue_db:
         condition: service_healthy
