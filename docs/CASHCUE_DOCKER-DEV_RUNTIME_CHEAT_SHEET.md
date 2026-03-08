@@ -1,8 +1,8 @@
-# CashCue Docker Runtime Cheat Sheet
+# CashCue Docker Runtime Cheat Sheet (For Cashcue Tests)
 
 *(Practical lifecycle reference)*
 
-This document explains **how CashCue Docker deployment actually works**, based on the current project structure.
+This document explains **how CashCue Docker deployment works**, based on the current project structure.
 
 It clarifies:
 
@@ -10,6 +10,7 @@ It clarifies:
 * when images are built
 * when containers exist
 * when the application actually starts
+* how to **backup and restore the database**
 
 ---
 
@@ -26,6 +27,7 @@ Loaded by:
 * `Makefile`
 * `docker-compose.yml`
 * `docker-entrypoint.sh`
+* `install_cashcue_db.sh`
 
 Example variables:
 
@@ -37,20 +39,37 @@ DB_NAME=cashcue
 APP_PORT=8000
 ```
 
+Optional variable used for database dumps:
+
+```
+DB_DUMP_FILE=adm/seed_ci_dataset.sql
+```
+
+This variable defines the **default location of database backups**.
+
+It can be overridden when calling `make`.
+
+Example:
+
+```
+sudo make docker-dump-db DB_DUMP_FILE=/tmp/test_dataset.sql
+```
+
 ---
 
 # 2. Control Layer (Makefile)
 
-The **Makefile orchestrates everything**.
+The **Makefile orchestrates the entire Docker lifecycle**.
 
 Main Docker commands:
 
 ```
 make docker-up
+make docker-stop
 make docker-down
 make docker-reset
 make init-db
-make deploy-container
+make docker-dump-db
 ```
 
 Important variable:
@@ -64,6 +83,18 @@ DOCKER_COMPOSE = docker compose \
 Meaning:
 
 **docker-compose automatically receives the variables from `cashcue.conf`.**
+
+The Makefile also loads the configuration:
+
+```
+include conf/cashcue.conf
+export
+```
+
+This means:
+
+* variables defined in `cashcue.conf`
+* are automatically available to **all Makefile targets**
 
 ---
 
@@ -308,7 +339,7 @@ Which executes the Docker CMD:
 apache2ctl -D FOREGROUND
 ```
 
-Apache now becomes **PID 1 of the container**.
+Apache becomes **PID 1 of the container**.
 
 ---
 
@@ -327,17 +358,102 @@ docker compose exec cashcue_app \
     bash /data/cashcue/adm/install_cashcue_db.sh
 ```
 
-This script loads:
+Default schema:
 
 ```
 adm/schemaCashCueBD.sql
 ```
 
-Into MariaDB.
+---
+
+### Custom schema or dataset
+
+You can initialize the database using a **custom SQL dataset**.
+
+Example:
+
+```
+make init-db SCHEMA=adm/seed_ci_dataset.sql
+```
+
+The script verifies that the file exists before importing it.
+
+This mechanism is useful for:
+
+* CI datasets
+* demo databases
+* integration testing
 
 ---
 
-# 10. Runtime Layout (Inside Container)
+# 10. Database Backup
+
+The database can be dumped using:
+
+```
+make docker-dump-db
+```
+
+This uses the variable:
+
+```
+DB_DUMP_FILE
+```
+
+Defined in:
+
+```
+conf/cashcue.conf
+```
+
+Example:
+
+```
+DB_DUMP_FILE=adm/seed_ci_dataset.sql
+```
+
+Running the command:
+
+```
+make docker-dump-db
+```
+
+Executes internally:
+
+```
+docker exec cashcue_db mariadb-dump \
+  -u$DB_USER \
+  -p$DB_PASS \
+  $DB_NAME > $DB_DUMP_FILE
+```
+
+---
+
+### Override dump location
+
+You can override the dump file:
+
+```
+make docker-dump-db DB_DUMP_FILE=/tmp/test_dump.sql
+```
+
+---
+
+# 11. Database Restore
+
+To restore a database dump:
+
+```
+make init-db SCHEMA=adm/seed_ci_dataset.sql
+```
+
+The initialization script will import the dataset **only if the database is empty**.
+
+If tables already exist, the schema import is skipped.
+
+---
+
+# 12. Runtime Layout (Inside Container)
 
 Application container filesystem:
 
@@ -353,7 +469,7 @@ Application container filesystem:
 
 ---
 
-# 11. Container Lifecycle
+# 13. Container Lifecycle
 
 ## Start
 
@@ -376,7 +492,23 @@ Creates:
 
 ---
 
-## Stop
+## Stop containers
+
+```
+make docker-stop
+```
+
+Runs:
+
+```
+docker compose stop
+```
+
+Containers stop but remain defined.
+
+---
+
+## Remove containers (keep DB)
 
 ```
 make docker-down
@@ -388,7 +520,9 @@ Runs:
 docker compose down
 ```
 
-Containers stop but volumes persist.
+Containers are removed but **volumes remain intact**.
+
+The database is preserved.
 
 ---
 
@@ -413,7 +547,7 @@ This deletes:
 
 ---
 
-# 12. Quick Operational Commands
+# 14. Quick Operational Commands
 
 Start stack:
 
@@ -427,7 +561,25 @@ Initialize database:
 make init-db
 ```
 
-Stop stack:
+Create DB backup:
+
+```
+make docker-dump-db
+```
+
+Restore DB dataset:
+
+```
+make init-db SCHEMA=adm/seed_ci_dataset.sql
+```
+
+Stop containers:
+
+```
+make docker-stop
+```
+
+Remove containers:
 
 ```
 make docker-down
@@ -441,19 +593,20 @@ make docker-reset
 
 ---
 
-# 13. Important Concept Summary
+# 15. Important Concept Summary
 
-| Layer              | Role                    |
-| ------------------ | ----------------------- |
-| Makefile           | orchestration           |
-| docker-compose.yml | container definition    |
-| Dockerfile         | image build             |
-| entrypoint.sh      | container startup logic |
-| Apache             | web server runtime      |
+| Layer                 | Role                    |
+| --------------------- | ----------------------- |
+| Makefile              | orchestration           |
+| docker-compose.yml    | container definition    |
+| Dockerfile            | image build             |
+| entrypoint.sh         | container startup logic |
+| Apache                | web server runtime      |
+| install_cashcue_db.sh | database initialization |
 
 ---
 
-# 14. Mental Model
+# 16. Mental Model
 
 Think of the system like this:
 
@@ -480,7 +633,7 @@ Apache running
 
 💡 **Important design advantage of CashCue**
 
-The project code is **mounted into the container**:
+The project code is **mounted directly into the container**:
 
 ```
 ../:/data/cashcue
@@ -490,6 +643,5 @@ Which means:
 
 * no rebuild required for code changes
 * instant development feedback
-
----
+* simplified development workflow
 
