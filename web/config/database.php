@@ -78,6 +78,13 @@ class Database {
     public function getConnection() {
         return $this->pdo;
     }
+    
+    // -------------------------------------------------------------
+    // New method: expose all app config from cashcue.conf
+    // -------------------------------------------------------------
+    public function getAppConfig(): array {
+        return $this->parseConfig();
+    }
 }
 
 

@@ -130,6 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        placeholder="Password"
                        required>
             </div>
+            <div class="mb-4 d-flex justify-content-between align-items-center">
+                <span></span>
+                <a href="/cashcue/views/forgot_password.php"
+                class="small text-muted text-decoration-none">
+                <i class="bi bi-key me-1"></i> Forgot password ?
+                </a>
+            </div>
 
             <button type="submit" class="btn btn-primary w-100 btn-lg">
                 <i class="bi bi-box-arrow-in-right me-2"></i> Login
