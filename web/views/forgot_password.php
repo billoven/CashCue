@@ -194,7 +194,7 @@ Send Reset Link
 
 <div class="text-center mt-3">
 
-<a href="/cashcue/login.php">
+<a href="/cashcue/views/login.php">
 Back to Login
 </a>
 

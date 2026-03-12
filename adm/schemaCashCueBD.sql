@@ -201,7 +201,7 @@ CREATE TABLE `portfolio_snapshot` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_snapshot_broker_account_date` (`broker_account_id`,`date`),
   CONSTRAINT `fk_snapshot_broker_account` FOREIGN KEY (`broker_account_id`) REFERENCES `broker_account` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=107 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=119 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -221,7 +221,7 @@ CREATE TABLE `realtime_price` (
   PRIMARY KEY (`id`),
   KEY `instrument_id` (`instrument_id`),
   CONSTRAINT `realtime_price_ibfk_1` FOREIGN KEY (`instrument_id`) REFERENCES `instrument` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=88987 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=89035 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -240,6 +240,8 @@ CREATE TABLE `user` (
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT NULL ON UPDATE current_timestamp(),
+  `reset_token` varchar(64) DEFAULT NULL,
+  `reset_token_expiry` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`)
@@ -300,4 +302,4 @@ CREATE TABLE `user_broker_account` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-02-27 11:28:42
+-- Dump completed on 2026-03-12 14:36:20
